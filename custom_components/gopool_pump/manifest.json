@@ -1,14 +1,14 @@
 {
   "domain": "gopool_pump",
   "name": "GoPool Variable Speed Pump",
-  "codeowners": [],
+  "codeowners": "alray31",
   "config_flow": true,
-  "documentation": "https://github.com/REPLACE_ME/gopool-pump-homeassistant",
+  "documentation": "https://github.com/alray31/gopool-pump",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/REPLACE_ME/gopool-pump-homeassistant/issues",
+  "issue_tracker": "https://github.com/alray31/gopool-pump/issues",
   "requirements": [
     "tinytuya>=1.13.0",
     "tuya-device-sharing-sdk>=0.2.10"
   ],
-  "version": "0.1.0"
+  "version": "0.0.1"
 }
