@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "GoPool Pompe à Vitesse Variable",
+        "menu_options": {
+          "manual": "Saisie manuelle (Device ID + Local Key)",
+          "cloud_qr": "Automatique (scanner le QR avec l'app Smart Life / Tuya Smart)"
+        }
+      },
+      "manual": {
+        "title": "Saisie manuelle",
+        "description": "Colle le Device ID et le Local Key récupérés sur iot.tuya.com (Cloud Development Project → Devices).",
+        "data": {
+          "name": "Nom",
+          "ip": "Adresse IP locale",
+          "device_id": "Device ID",
+          "local_key": "Local Key",
+          "protocol_version": "Version du protocole local"
+        }
+      },
+      "cloud_qr": {
+        "title": "Lier ton compte Smart Life / Tuya Smart",
+        "description": "Entre le code utilisateur de ton app (Profil → Réglages → Compte et sécurité → code utilisateur dans l'app Smart Life / Tuya Smart — pas ton courriel ou mot de passe).",
+        "data": {
+          "user_code": "Code utilisateur"
+        }
+      },
+      "scan": {
+        "title": "Scanne ce code QR",
+        "description": "Ouvre l'app Smart Life / Tuya Smart et scanne ce code, confirme sur ton téléphone, puis clique Soumettre ici."
+      },
+      "pick_device": {
+        "title": "Choisis ta pompe",
+        "description": "Choisis l'appareil dans ton compte lié, et fournis/corrige son IP locale si elle n'a pas été rapportée automatiquement.",
+        "data": {
+          "device": "Appareil",
+          "ip_override": "Adresse IP locale (remplacement)",
+          "protocol_version": "Version du protocole local"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de joindre la pompe localement avec ces identifiants. Vérifie l'adresse IP et que la pompe est sur le même sous-réseau.",
+      "login_error": "Échec de connexion Tuya — vérifie le code utilisateur, ou le QR a peut-être expiré.",
+      "ip_required": "Aucune IP rapportée pour cet appareil — entre-la manuellement."
+    },
+    "abort": {
+      "already_configured": "Cette pompe est déjà configurée.",
+      "device_list_failed": "Impossible de lister les appareils de ton compte Tuya après la connexion.",
+      "no_devices_found": "Aucun appareil avec une local key utilisable n'a été trouvé sur ce compte."
+    }
+  }
+}
