@@ -44,11 +44,15 @@ PROTOCOL_VERSIONS = ["3.1", "3.2", "3.3", "3.4", "3.5"]
 
 def _test_connection_sync(ip: str, device_id: str, local_key: str, protocol: str) -> bool:
     """Blocking connection test — must be called via async_add_executor_job."""
-    device = tinytuya.OutletDevice(dev_id=device_id, address=ip, local_key=local_key)
-    device.set_version(float(protocol))
-    device.set_socket_timeout(5)
-    result = device.status()
-    return bool(result and "dps" in result and not result.get("Error"))
+    try:
+        device = tinytuya.OutletDevice(dev_id=device_id, address=ip, local_key=local_key)
+        device.set_version(float(protocol))
+        device.set_socket_timeout(5)
+        result = device.status()
+        return bool(result and "dps" in result and not result.get("Error"))
+    except Exception:  # noqa: BLE001
+        _LOGGER.exception("Local connection test to %s failed", ip)
+        return False
 
 
 class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
