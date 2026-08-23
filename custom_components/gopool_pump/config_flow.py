@@ -81,7 +81,7 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str, protocol: str
         # doesn't catch it, which matches what we observed (correct
         # device_id/local_key/IP still failing to poll).
         device = tinytuya.OutletDevice(
-            dev_id=device_id, address=ip, local_key=local_key, dev_type="device22"
+            dev_id=device_id, address=ip, local_key=local_key
         )
         device.set_version(float(protocol))
         device.set_socketTimeout(20)
