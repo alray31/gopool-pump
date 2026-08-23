@@ -41,10 +41,13 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )
         self.entry = entry
+        # dev_type="device22": this pump's 22-char device_id needs it
+        # explicitly (see config_flow.py's _test_connection_sync for why).
         self.device = tinytuya.OutletDevice(
             dev_id=entry.data[CONF_DEVICE_ID],
             address=entry.data["ip"],
             local_key=entry.data[CONF_LOCAL_KEY],
+            dev_type="device22",
         )
         self.device.set_version(float(entry.data.get(CONF_PROTOCOL_VERSION, "3.5")))
         self.device.set_socket_persistent(True)
