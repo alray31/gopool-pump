@@ -43,9 +43,21 @@ PROTOCOL_VERSIONS = ["3.1", "3.2", "3.3", "3.4", "3.5"]
 
 
 def _test_connection_sync(ip: str, device_id: str, local_key: str, protocol: str) -> bool:
-    """Blocking connection test — must be called via async_add_executor_job."""
+    """Blocking connection test — must be called via async_add_executor_job.
+
+    Never lets an exception escape: tinytuya can raise (socket timeout,
+    connection refused, decrypt error, ...) instead of returning a clean
+    failure dict, and an uncaught exception here surfaces to the user as
+    the generic "Unknown error occurred" instead of a proper form error.
+    """
     try:
-        device = tinytuya.OutletDevice(dev_id=device_id, address=ip, local_key=local_key)
+        # This pump's device_id is 22 characters — tinytuya's own docs flag
+        # that as needing dev_type='device22' explicitly when auto-detection
+        # doesn't catch it, which matches what we observed (correct
+        # device_id/local_key/IP still failing to poll).
+        device = tinytuya.OutletDevice(
+            dev_id=device_id, address=ip, local_key=local_key, dev_type="device22"
+        )
         device.set_version(float(protocol))
         device.set_socket_timeout(5)
         result = device.status()
@@ -253,6 +265,13 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
                 local_key = getattr(device, "local_key", None)
                 if not local_key:
                     continue  # devices without a usable local_key are skipped
+                # TEMP DEBUG — remove once local_key mismatch is diagnosed.
+                _LOGGER.warning(
+                    "GoPool debug: device_id=%s local_key=%s ip=%s (from Tuya cloud)",
+                    dev_id,
+                    local_key,
+                    getattr(device, "ip", "") or "(none reported)",
+                )
                 self.__devices[dev_id] = {
                     "name": getattr(device, "name", dev_id),
                     "local_key": local_key,
