@@ -50,6 +50,9 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             dev_type="device22",
         )
         self.device.set_version(float(entry.data.get(CONF_PROTOCOL_VERSION, "3.5")))
+        # Same 20s timeout as the config flow's connection test — this pump
+        # sits behind a slow wifi bridge and the default 5s was too short.
+        self.device.set_socketTimeout(20)
         self.device.set_socketPersistent(True)
 
     async def _async_update_data(self) -> dict:
