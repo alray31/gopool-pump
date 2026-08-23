@@ -2,24 +2,6 @@
   "config": {
     "step": {
       "user": {
-        "title": "GoPool Pompe à Vitesse Variable",
-        "menu_options": {
-          "manual": "Saisie manuelle (Device ID + Local Key)",
-          "cloud_qr": "Automatique (scanner le QR avec l'app Smart Life / Tuya Smart)"
-        }
-      },
-      "manual": {
-        "title": "Saisie manuelle",
-        "description": "Colle le Device ID et le Local Key récupérés sur iot.tuya.com (Cloud Development Project → Devices).",
-        "data": {
-          "name": "Nom",
-          "ip": "Adresse IP locale",
-          "device_id": "Device ID",
-          "local_key": "Local Key",
-          "protocol_version": "Version du protocole local"
-        }
-      },
-      "cloud_qr": {
         "title": "Lier ton compte Smart Life / Tuya Smart",
         "description": "Entre le code utilisateur de ton app (Profil → Réglages → Compte et sécurité → code utilisateur dans l'app Smart Life / Tuya Smart — pas ton courriel ou mot de passe).",
         "data": {
@@ -32,18 +14,16 @@
       },
       "pick_device": {
         "title": "Choisis ta pompe",
-        "description": "Choisis l'appareil dans ton compte lié, et fournis/corrige son IP locale si elle n'a pas été rapportée automatiquement.",
+        "description": "Choisis l'appareil dans ton compte lié, et entre son adresse IP locale.",
         "data": {
           "device": "Appareil",
-          "ip_override": "Adresse IP locale (remplacement)",
-          "protocol_version": "Version du protocole local"
+          "ip": "Adresse IP locale"
         }
       }
     },
     "error": {
       "cannot_connect": "Impossible de joindre la pompe localement avec ces identifiants. Vérifie l'adresse IP et que la pompe est sur le même sous-réseau.",
-      "login_error": "Échec de connexion Tuya — vérifie le code utilisateur, ou le QR a peut-être expiré.",
-      "ip_required": "Aucune IP rapportée pour cet appareil — entre-la manuellement."
+      "login_error": "Échec de connexion Tuya — vérifie le code utilisateur, ou le QR a peut-être expiré."
     },
     "abort": {
       "already_configured": "Cette pompe est déjà configurée.",

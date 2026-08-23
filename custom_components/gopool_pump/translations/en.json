@@ -2,24 +2,6 @@
   "config": {
     "step": {
       "user": {
-        "title": "GoPool Variable Speed Pump",
-        "menu_options": {
-          "manual": "Manual entry (Device ID + Local Key)",
-          "cloud_qr": "Automatic (scan QR with Smart Life / Tuya Smart app)"
-        }
-      },
-      "manual": {
-        "title": "Manual entry",
-        "description": "Paste the Device ID and Local Key you retrieved from iot.tuya.com (Cloud Development Project → Devices).",
-        "data": {
-          "name": "Name",
-          "ip": "Local IP address",
-          "device_id": "Device ID",
-          "local_key": "Local Key",
-          "protocol_version": "Local protocol version"
-        }
-      },
-      "cloud_qr": {
         "title": "Link your Smart Life / Tuya Smart account",
         "description": "Enter your app's user code (Profile → Settings → Account and Security → user code in the Smart Life / Tuya Smart app — not your email or password).",
         "data": {
@@ -32,18 +14,16 @@
       },
       "pick_device": {
         "title": "Select your pump",
-        "description": "Pick the device from your linked account, and provide/override its local IP if it wasn't reported automatically.",
+        "description": "Pick the device from your linked account, and enter its local IP address.",
         "data": {
           "device": "Device",
-          "ip_override": "Local IP address (override)",
-          "protocol_version": "Local protocol version"
+          "ip": "Local IP address"
         }
       }
     },
     "error": {
       "cannot_connect": "Could not reach the pump locally with these credentials. Check the IP address and that the pump is on the same subnet.",
-      "login_error": "Tuya login failed — check the user code, or the QR code may have expired.",
-      "ip_required": "No IP was reported for this device — enter it manually."
+      "login_error": "Tuya login failed — check the user code, or the QR code may have expired."
     },
     "abort": {
       "already_configured": "This pump is already configured.",
