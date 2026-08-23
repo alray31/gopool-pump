@@ -20,7 +20,7 @@ CONF_PROTOCOL_VERSION = "protocol_version"
 CONF_USER_CODE = "user_code"
 
 DEFAULT_PROTOCOL_VERSION = "3.5"
-DEFAULT_SCAN_INTERVAL = 15  # seconds — local polling, cheap and fast over LAN
+DEFAULT_SCAN_INTERVAL = 30  # seconds — local polling, cheap and fast over LAN
 
 # --------------------------------------------------------------------------
 # Tuya Cloud "QR login" constants — REUSED from Home Assistant's own public,
