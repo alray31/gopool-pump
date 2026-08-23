@@ -27,7 +27,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["switch", "number"]
+PLATFORMS = ["switch", "number", "time"]
 
 
 class GoPoolCoordinator(DataUpdateCoordinator[dict]):
@@ -65,6 +65,16 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
     async def async_write_dp(self, dp_id: str, value) -> None:
         """Write a single DP locally and refresh state."""
         await self.hass.async_add_executor_job(self.device.set_value, dp_id, value)
+        await self.async_request_refresh()
+
+    async def async_write_dps(self, values: dict[str, object]) -> None:
+        """Write multiple DPs in a single local command and refresh state.
+
+        Used for entities that combine more than one DP (e.g. a stage's
+        start hour + start minute as one time picker) so both land in one
+        request instead of two separate round trips.
+        """
+        await self.hass.async_add_executor_job(self.device.set_multiple_values, values)
         await self.async_request_refresh()
 
 

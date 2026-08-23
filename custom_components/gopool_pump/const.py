@@ -103,12 +103,6 @@ DP_MAP: dict[str, dict] = {
         "step": 10,
         "icon": "mdi:camera-timer",
     },
-    "102": {
-        "platform": "switch",
-        "key": "schedule",
-        "name": "Schedule",
-        "icon": "mdi:calendar-clock",
-    },
     "106": {
         "platform": "switch",
         "key": "no_load_protection",
@@ -157,25 +151,18 @@ for _stage, _dps in _STAGE_DP_IDS.items():
         "step": 1,
         "icon": "mdi:camera-timer",
     }
-    DP_MAP[_dps["start_hour"]] = {
-        "platform": "number",
-        "key": f"stage_{_stage}_start_hour",
-        "name": f"Stage {_stage} Start Hour",
-        "unit": "h",
-        "min": 0,
-        "max": 23,
-        "step": 1,
-        "icon": "mdi:clock-start",
-    }
-    DP_MAP[_dps["start_minute"]] = {
-        "platform": "number",
-        "key": f"stage_{_stage}_start_minute",
-        "name": f"Stage {_stage} Start Minute",
-        "unit": "min",
-        "min": 0,
-        "max": 50,
-        "step": 10,
-        "icon": "mdi:clock-time-eight",
-    }
+    # start_hour / start_minute are intentionally NOT added to DP_MAP as
+    # separate number entities — the time.py platform combines them into
+    # one HH:MM entity per stage instead (see STAGE_START_TIME_DPS below).
 
 del _stage, _dps
+
+# --------------------------------------------------------------------------
+# Stage 1-4 combined start-time entities (time.py): each maps to two DPs —
+# an hour (0-23, step 1) and a minute (0/10/20/.../50, step 10) — exposed
+# as a single HH:MM time picker instead of two separate number entities.
+# --------------------------------------------------------------------------
+STAGE_START_TIME_DPS: dict[int, dict[str, str]] = {
+    stage: {"start_hour": dps["start_hour"], "start_minute": dps["start_minute"]}
+    for stage, dps in _STAGE_DP_IDS.items()
+}
