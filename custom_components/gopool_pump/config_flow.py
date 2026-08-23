@@ -61,6 +61,8 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str, protocol: str
         device.set_version(float(protocol))
         device.set_socketTimeout(5)
         result = device.status()
+        # TEMP DEBUG — remove once the real failure cause is confirmed.
+        _LOGGER.warning("GoPool debug: status() for %s returned: %s", ip, result)
         return bool(result and "dps" in result and not result.get("Error"))
     except Exception:  # noqa: BLE001
         _LOGGER.exception("Local connection test to %s failed", ip)
