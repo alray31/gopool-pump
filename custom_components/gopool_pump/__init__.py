@@ -47,7 +47,6 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             dev_id=entry.data[CONF_DEVICE_ID],
             address=entry.data["ip"],
             local_key=entry.data[CONF_LOCAL_KEY],
-            dev_type="device22",
         )
         self.device.set_version(float(entry.data.get(CONF_PROTOCOL_VERSION, "3.5")))
         # Same 20s timeout as the config flow's connection test — this pump
