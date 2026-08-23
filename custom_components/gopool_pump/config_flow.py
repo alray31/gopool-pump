@@ -59,7 +59,7 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str, protocol: str
             dev_id=device_id, address=ip, local_key=local_key, dev_type="device22"
         )
         device.set_version(float(protocol))
-        device.set_socket_timeout(5)
+        device.set_socketTimeout(5)
         result = device.status()
         return bool(result and "dps" in result and not result.get("Error"))
     except Exception:  # noqa: BLE001
