@@ -1,13 +1,14 @@
 """Config flow for GoPool Variable Speed Pump.
 
-Two paths to get device_id + local_key + ip:
-  - "manual": paste them directly (exactly like the localtuya template setup
-    this integration replaces) — zero external dependency, always available.
-  - "cloud_qr": scan a QR code with the Smart Life / Tuya Smart app (same
-    mechanism Home Assistant's own official Tuya integration uses for its
-    QR login step, reusing HA's public client_id/schema — see const.py for
-    the sourcing/caveat notes). Used ONLY during setup to fetch credentials;
-    nothing here keeps talking to the cloud afterward.
+Setup is QR-only: scan a code with the Smart Life / Tuya Smart app (same
+mechanism Home Assistant's own official Tuya integration uses for its QR
+login step, reusing HA's public client_id/schema — see const.py for the
+sourcing/caveat notes) to fetch device_id + local_key, then confirm the
+pump's local IP. Nothing here keeps talking to the cloud afterward — once
+the config entry exists, the integration is 100% local.
+
+Protocol version is fixed at 3.5 (this pump line only ships that version;
+see DEFAULT_PROTOCOL_VERSION in const.py) — not exposed as a choice.
 """
 
 from __future__ import annotations
@@ -19,7 +20,6 @@ import tinytuya
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.helpers import selector
 
 from .const import (
     CONF_DEVICE_ID,
@@ -39,10 +39,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PROTOCOL_VERSIONS = ["3.1", "3.2", "3.3", "3.4", "3.5"]
 
-
-def _test_connection_sync(ip: str, device_id: str, local_key: str, protocol: str) -> bool:
+def _test_connection_sync(ip: str, device_id: str, local_key: str) -> bool:
     """Blocking connection test — must be called via async_add_executor_job.
 
     Never lets an exception escape: tinytuya can raise (socket timeout,
@@ -50,51 +48,11 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str, protocol: str
     failure dict, and an uncaught exception here surfaces to the user as
     the generic "Unknown error occurred" instead of a proper form error.
     """
-    import socket
-    import time
-
-    # TEMP DEBUG — raw TCP probe on the Tuya control port, separate from
-    # tinytuya entirely. This tells us whether the pump is reachable on the
-    # network at all (TCP handshake succeeds) vs. tinytuya's own
-    # request/response never getting an answer at the Tuya protocol level.
-    tcp_start = time.monotonic()
     try:
-        with socket.create_connection((ip, 6668), timeout=5) as _sock:
-            tcp_elapsed = time.monotonic() - tcp_start
-            _LOGGER.warning(
-                "GoPool debug: raw TCP connect to %s:6668 SUCCEEDED in %.2fs",
-                ip,
-                tcp_elapsed,
-            )
-    except OSError as tcp_err:
-        tcp_elapsed = time.monotonic() - tcp_start
-        _LOGGER.warning(
-            "GoPool debug: raw TCP connect to %s:6668 FAILED after %.2fs: %s",
-            ip,
-            tcp_elapsed,
-            tcp_err,
-        )
-
-    try:
-        # This pump's device_id is 22 characters — tinytuya's own docs flag
-        # that as needing dev_type='device22' explicitly when auto-detection
-        # doesn't catch it, which matches what we observed (correct
-        # device_id/local_key/IP still failing to poll).
-        device = tinytuya.OutletDevice(
-            dev_id=device_id, address=ip, local_key=local_key
-        )
-        device.set_version(float(protocol))
+        device = tinytuya.OutletDevice(dev_id=device_id, address=ip, local_key=local_key)
+        device.set_version(float(DEFAULT_PROTOCOL_VERSION))
         device.set_socketTimeout(20)
-        status_start = time.monotonic()
         result = device.status()
-        status_elapsed = time.monotonic() - status_start
-        # TEMP DEBUG — remove once the real failure cause is confirmed.
-        _LOGGER.warning(
-            "GoPool debug: status() for %s took %.2fs, returned: %s",
-            ip,
-            status_elapsed,
-            result,
-        )
         return bool(result and "dps" in result and not result.get("Error"))
     except Exception:  # noqa: BLE001
         _LOGGER.exception("Local connection test to %s failed", ip)
@@ -110,67 +68,17 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         self.__login_control = None
         self.__user_code: str = ""
         self.__qr_code: str = ""
-        self.__manager = None
+        self.__token_info: dict[str, Any] = {}
+        self.__terminal_id: str = ""
+        self.__endpoint: str = ""
         self.__devices: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
-    # Entry point
+    # Entry point — ask for the Smart Life / Tuya Smart "user code"
+    # (Profile -> Settings -> Account and Security -> user code in the
+    # app — NOT the account email/password).
     # ------------------------------------------------------------------
     async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        return self.async_show_menu(
-            step_id="user",
-            menu_options=["manual", "cloud_qr"],
-        )
-
-    # ------------------------------------------------------------------
-    # Path 1 — manual entry (no cloud dependency at all)
-    # ------------------------------------------------------------------
-    async def async_step_manual(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            ok = await self.hass.async_add_executor_job(
-                _test_connection_sync,
-                user_input["ip"],
-                user_input[CONF_DEVICE_ID],
-                user_input[CONF_LOCAL_KEY],
-                user_input[CONF_PROTOCOL_VERSION],
-            )
-            if ok:
-                await self.async_set_unique_id(user_input[CONF_DEVICE_ID])
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=user_input.get("name", "GoPool Pump"),
-                    data=user_input,
-                )
-            errors["base"] = "cannot_connect"
-
-        return self.async_show_form(
-            step_id="manual",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("name", default="GoPool Pump"): str,
-                    vol.Required("ip"): str,
-                    vol.Required(CONF_DEVICE_ID): str,
-                    vol.Required(CONF_LOCAL_KEY): str,
-                    vol.Required(
-                        CONF_PROTOCOL_VERSION, default=DEFAULT_PROTOCOL_VERSION
-                    ): vol.In(PROTOCOL_VERSIONS),
-                }
-            ),
-            errors=errors,
-        )
-
-    # ------------------------------------------------------------------
-    # Path 2 — QR login, step A: ask for the Smart Life / Tuya Smart
-    # "user code" (Profile -> Settings -> Account and Security -> user code
-    # in the app — NOT the account email/password).
-    # ------------------------------------------------------------------
-    async def async_step_cloud_qr(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         from tuya_sharing import LoginControl
@@ -192,7 +100,7 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
             }
 
         return self.async_show_form(
-            step_id="cloud_qr",
+            step_id="user",
             data_schema=vol.Schema({vol.Required(CONF_USER_CODE): str}),
             errors=errors,
             description_placeholders=placeholders,
@@ -209,11 +117,13 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         return success, response
 
     # ------------------------------------------------------------------
-    # Path 2, step B: show the QR code, wait for it to be scanned.
+    # Show the QR code, wait for it to be scanned.
     # ------------------------------------------------------------------
     async def async_step_scan(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        from homeassistant.helpers import selector
+
         qr_schema = vol.Schema(
             {
                 vol.Optional("QR"): selector.QrCodeSelector(
@@ -262,8 +172,8 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_pick_device()
 
     # ------------------------------------------------------------------
-    # Path 2, step C: query the linked account's devices, let the user
-    # pick which one is the pool pump, extract device_id + local_key.
+    # Query the linked account's devices, let the user pick which one is
+    # the pool pump, extract device_id + local_key.
     # ------------------------------------------------------------------
     async def async_step_pick_device(
         self, user_input: dict[str, Any] | None = None
@@ -291,7 +201,7 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
 
             try:
                 device_map = await self.hass.async_add_executor_job(_build_manager_and_list)
-            except Exception as err:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 _LOGGER.exception("Failed to list Tuya devices after QR login")
                 return self.async_abort(reason="device_list_failed")
 
@@ -299,16 +209,13 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
                 local_key = getattr(device, "local_key", None)
                 if not local_key:
                     continue  # devices without a usable local_key are skipped
-                # TEMP DEBUG — remove once local_key mismatch is diagnosed.
-                _LOGGER.warning(
-                    "GoPool debug: device_id=%s local_key=%s ip=%s (from Tuya cloud)",
-                    dev_id,
-                    local_key,
-                    getattr(device, "ip", "") or "(none reported)",
-                )
                 self.__devices[dev_id] = {
                     "name": getattr(device, "name", dev_id),
                     "local_key": local_key,
+                    # The cloud-reported IP is frequently a public/WAN
+                    # address (Tuya's device-sharing API does not
+                    # reliably report the LAN IP) — never trusted as a
+                    # silent default, always confirmed/entered below.
                     "ip": getattr(device, "ip", "") or "",
                 }
 
@@ -318,44 +225,54 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             dev_id = user_input["device"]
             device = self.__devices[dev_id]
-            ip = user_input.get("ip_override") or device["ip"]
-            protocol = user_input[CONF_PROTOCOL_VERSION]
+            ip = user_input["ip"]
 
-            if not ip:
-                errors["ip_override"] = "ip_required"
-            else:
-                ok = await self.hass.async_add_executor_job(
-                    _test_connection_sync, ip, dev_id, device["local_key"], protocol
+            ok = await self.hass.async_add_executor_job(
+                _test_connection_sync, ip, dev_id, device["local_key"]
+            )
+            if ok:
+                await self.async_set_unique_id(dev_id)
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(
+                    title=device["name"],
+                    data={
+                        "name": device["name"],
+                        "ip": ip,
+                        CONF_DEVICE_ID: dev_id,
+                        CONF_LOCAL_KEY: device["local_key"],
+                        CONF_PROTOCOL_VERSION: DEFAULT_PROTOCOL_VERSION,
+                    },
                 )
-                if ok:
-                    await self.async_set_unique_id(dev_id)
-                    self._abort_if_unique_id_configured()
-                    return self.async_create_entry(
-                        title=device["name"],
-                        data={
-                            "name": device["name"],
-                            "ip": ip,
-                            CONF_DEVICE_ID: dev_id,
-                            CONF_LOCAL_KEY: device["local_key"],
-                            CONF_PROTOCOL_VERSION: protocol,
-                        },
-                    )
-                errors["base"] = "cannot_connect"
+            errors["base"] = "cannot_connect"
 
         device_choices = {
             dev_id: f"{info['name']} ({dev_id})" for dev_id, info in self.__devices.items()
         }
+        # Pre-fill the IP field with the cloud-reported value only when it
+        # looks like a private LAN address — never with a public IP.
+        first_ip = next(iter(self.__devices.values()), {}).get("ip", "")
+        default_ip = first_ip if _looks_private(first_ip) else ""
 
         return self.async_show_form(
             step_id="pick_device",
             data_schema=vol.Schema(
                 {
                     vol.Required("device"): vol.In(device_choices),
-                    vol.Optional("ip_override"): str,
-                    vol.Required(
-                        CONF_PROTOCOL_VERSION, default=DEFAULT_PROTOCOL_VERSION
-                    ): vol.In(PROTOCOL_VERSIONS),
+                    vol.Required("ip", default=default_ip): str,
                 }
             ),
             errors=errors,
         )
+
+
+def _looks_private(ip: str) -> bool:
+    """True for RFC1918 private ranges — a cheap guard against pre-filling
+    a public/WAN IP the Tuya cloud API sometimes reports for shared
+    devices."""
+    if not ip:
+        return False
+    parts = ip.split(".")
+    if len(parts) != 4 or not all(p.isdigit() for p in parts):
+        return False
+    a, b = int(parts[0]), int(parts[1])
+    return a == 10 or (a == 172 and 16 <= b <= 31) or (a == 192 and b == 168)

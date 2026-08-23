@@ -41,8 +41,10 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )
         self.entry = entry
-        # dev_type="device22": this pump's 22-char device_id needs it
-        # explicitly (see config_flow.py's _test_connection_sync for why).
+        # No dev_type override: forcing "device22" produced inconsistent
+        # Tuya-level errors even with confirmed-correct credentials (see
+        # config_flow.py's _test_connection_sync for the diagnostic
+        # history) — left as the library default, matching localTuya.
         self.device = tinytuya.OutletDevice(
             dev_id=entry.data[CONF_DEVICE_ID],
             address=entry.data["ip"],

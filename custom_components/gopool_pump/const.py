@@ -19,8 +19,15 @@ CONF_LOCAL_KEY = "local_key"
 CONF_PROTOCOL_VERSION = "protocol_version"
 CONF_USER_CODE = "user_code"
 
+# Fixed, not user-selectable: every GoPool AG1/IG1/IG2 pump confirmed so far
+# uses local protocol 3.5. Still stored per config entry (not hardcoded at
+# the call sites) so a future pump generation needing a different version
+# wouldn't require a data migration.
 DEFAULT_PROTOCOL_VERSION = "3.5"
-DEFAULT_SCAN_INTERVAL = 30  # seconds — local polling, cheap and fast over LAN
+DEFAULT_SCAN_INTERVAL = 30  # seconds — bumped from 15: this pump sits behind a
+# slow wifi bridge, and each local poll can now take up to ~20s (see the
+# socket timeout in __init__.py / config_flow.py), so 15s risked overlapping
+# requests.
 
 # --------------------------------------------------------------------------
 # Tuya Cloud "QR login" constants — REUSED from Home Assistant's own public,
@@ -34,8 +41,8 @@ DEFAULT_SCAN_INTERVAL = 30  # seconds — local polling, cheap and fast over LAN
 # ⚠️ Caveat: this is a third-party reuse of an identifier Tuya issued to
 # Home Assistant specifically. It works today (community reports confirm
 # it), but Tuya could rate-limit or revoke it for non-HA-core consumers at
-# any time without notice. The manual entry path (device_id + local_key)
-# always remains available as a fallback and has zero dependency on this.
+# any time without notice — setup is entirely QR-based (see config_flow.py),
+# so that would break new installs until this identifier is updated.
 # --------------------------------------------------------------------------
 TUYA_CLIENT_ID = "HA_3y9q4ak7g4ephrvke"
 TUYA_SCHEMA = "haauthorize"
