@@ -50,7 +50,7 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             dev_type="device22",
         )
         self.device.set_version(float(entry.data.get(CONF_PROTOCOL_VERSION, "3.5")))
-        self.device.set_socket_persistent(True)
+        self.device.set_socketPersistent(True)
 
     async def _async_update_data(self) -> dict:
         result = await self.hass.async_add_executor_job(self.device.status)
