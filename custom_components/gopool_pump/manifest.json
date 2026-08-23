@@ -1,7 +1,7 @@
 {
   "domain": "gopool_pump",
   "name": "GoPool Variable Speed Pump",
-  "codeowners": "alray31",
+  "codeowners": ["@alray31"],
   "config_flow": true,
   "documentation": "https://github.com/alray31/gopool-pump",
   "iot_class": "local_polling",
