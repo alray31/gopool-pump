@@ -2,19 +2,19 @@
   "config": {
     "step": {
       "user": {
-        "title": "Lier ton compte Smart Life / Tuya Smart",
-        "description": "Entre le code utilisateur de ton app (Profil → Réglages → Compte et sécurité → code utilisateur dans l'app Smart Life / Tuya Smart — pas ton courriel ou mot de passe).",
+        "title": "Lier votre compte Smart Life / Tuya Smart",
+        "description": "**Comment ça fonctionne :** une fois configurée, cette intégration contrôle votre pompe entièrement en local, sans passer par le cloud. La configuration initiale nécessite toutefois une connexion unique au cloud Smart Life afin de récupérer automatiquement le device ID et la local key de votre pompe — vous n'avez donc rien à chercher manuellement.\n\nAvant de continuer, assurez-vous que votre pompe a déjà été ajoutée dans l'application Smart Life, tel que décrit dans le manuel d'instructions de votre pompe.\n\nUne fois la configuration terminée, l'application Smart Life n'est plus nécessaire, sauf si vous souhaitez continuer à l'utiliser en parallèle.\n\n**⚠️ Avertissement :** si vous supprimez puis rajoutez votre pompe dans Smart Life, sa local key changera, et vous devrez reconfigurer cette intégration en conséquence. Vous pouvez supprimer l'application Smart Life de votre téléphone sans problème, mais **ne supprimez jamais la pompe de votre compte Smart Life**.\n\n**Où trouver votre code utilisateur :** ouvrez l'application Smart Life → Profil (icône en bas à droite) → icône d'engrenage (Réglages) → Compte et sécurité → Code utilisateur.\n\n![Comment trouver le code utilisateur](https://raw.githubusercontent.com/alray31/gopool-pump/main/docs/images/user_code.gif)",
         "data": {
           "user_code": "Code utilisateur"
         }
       },
       "scan": {
-        "title": "Scanne ce code QR",
-        "description": "Ouvre l'app Smart Life / Tuya Smart et scanne ce code, confirme sur ton téléphone, puis clique Soumettre ici."
+        "title": "Scannez ce code QR",
+        "description": "Ouvrez l'application Smart Life ou Tuya Smart, puis appuyez sur l'icône de scan (généralement en haut à droite de l'écran d'accueil). Scannez le code ci-dessous, confirmez sur votre téléphone, puis cliquez sur Soumettre ici.\n\n![Comment scanner le code QR](https://raw.githubusercontent.com/alray31/gopool-pump/main/docs/images/qr_scan.gif)"
       },
       "pick_device": {
-        "title": "Choisis ta pompe",
-        "description": "Choisis l'appareil dans ton compte lié, et entre son adresse IP locale.",
+        "title": "Choisissez votre pompe",
+        "description": "Choisissez l'appareil dans votre compte lié, et entrez son adresse IP locale.",
         "data": {
           "device": "Appareil",
           "ip": "Adresse IP locale"
@@ -22,12 +22,12 @@
       }
     },
     "error": {
-      "cannot_connect": "Impossible de joindre la pompe localement avec ces identifiants. Vérifie l'adresse IP et que la pompe est sur le même sous-réseau.",
-      "login_error": "Échec de connexion Tuya — vérifie le code utilisateur, ou le QR a peut-être expiré."
+      "cannot_connect": "Impossible de joindre la pompe localement avec ces identifiants. Vérifiez l'adresse IP et que la pompe est sur le même sous-réseau.",
+      "login_error": "Échec de connexion Tuya — vérifiez le code utilisateur, ou le QR a peut-être expiré."
     },
     "abort": {
       "already_configured": "Cette pompe est déjà configurée.",
-      "device_list_failed": "Impossible de lister les appareils de ton compte Tuya après la connexion.",
+      "device_list_failed": "Impossible de lister les appareils de votre compte Tuya après la connexion.",
       "no_devices_found": "Aucun appareil avec une local key utilisable n'a été trouvé sur ce compte."
     }
   }
