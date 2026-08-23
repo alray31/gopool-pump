@@ -50,6 +50,31 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str, protocol: str
     failure dict, and an uncaught exception here surfaces to the user as
     the generic "Unknown error occurred" instead of a proper form error.
     """
+    import socket
+    import time
+
+    # TEMP DEBUG — raw TCP probe on the Tuya control port, separate from
+    # tinytuya entirely. This tells us whether the pump is reachable on the
+    # network at all (TCP handshake succeeds) vs. tinytuya's own
+    # request/response never getting an answer at the Tuya protocol level.
+    tcp_start = time.monotonic()
+    try:
+        with socket.create_connection((ip, 6668), timeout=5) as _sock:
+            tcp_elapsed = time.monotonic() - tcp_start
+            _LOGGER.warning(
+                "GoPool debug: raw TCP connect to %s:6668 SUCCEEDED in %.2fs",
+                ip,
+                tcp_elapsed,
+            )
+    except OSError as tcp_err:
+        tcp_elapsed = time.monotonic() - tcp_start
+        _LOGGER.warning(
+            "GoPool debug: raw TCP connect to %s:6668 FAILED after %.2fs: %s",
+            ip,
+            tcp_elapsed,
+            tcp_err,
+        )
+
     try:
         # This pump's device_id is 22 characters — tinytuya's own docs flag
         # that as needing dev_type='device22' explicitly when auto-detection
@@ -60,9 +85,16 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str, protocol: str
         )
         device.set_version(float(protocol))
         device.set_socketTimeout(20)
+        status_start = time.monotonic()
         result = device.status()
+        status_elapsed = time.monotonic() - status_start
         # TEMP DEBUG — remove once the real failure cause is confirmed.
-        _LOGGER.warning("GoPool debug: status() for %s returned: %s", ip, result)
+        _LOGGER.warning(
+            "GoPool debug: status() for %s took %.2fs, returned: %s",
+            ip,
+            status_elapsed,
+            result,
+        )
         return bool(result and "dps" in result and not result.get("Error"))
     except Exception:  # noqa: BLE001
         _LOGGER.exception("Local connection test to %s failed", ip)
