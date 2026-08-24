@@ -10,7 +10,7 @@
       },
       "scan": {
         "title": "Scannez ce code QR",
-        "description": "Ouvrez l'application Smart Life ou Tuya Smart, puis appuyez sur l'icône de scan (généralement en haut à droite de l'écran profil). Scannez le code ci-dessous, confirmez sur votre téléphone, puis cliquez sur Soumettre ici.\n\n![Comment scanner le code QR]({qr_scan_gif_url})"
+        "description": "Ouvrez l'application Smart Life ou Tuya Smart, puis appuyez sur l'icône de scan (généralement en haut à droite de l'écran profil). Scannez le code ci-dessous, confirmez sur votre téléphone, puis cliquez sur Valider ici.\n\n![Comment scanner le code QR]({qr_scan_gif_url})"
       },
       "pick_device": {
         "title": "Choisissez votre pompe",
