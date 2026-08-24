@@ -1,14 +1,18 @@
-[English version](README.en.md)
+# GoPool Variable Speed Pump
 
 <img width="1398" height="678" alt="banner" src="https://github.com/user-attachments/assets/8ffd675d-dcd9-47bd-bc88-2c683837a494" />
 
-# GoPool Variable Speed Pump
+🇫🇷 [Français](#français) · 🇬🇧 [English](#english)
+
+---
+
+## Français
 
 Intégration [HACS](https://hacs.xyz/) pour contrôler une pompe à vitesse
 variable **GoPool / GoPiscine AG1, IG1 ou IG2** dans Home Assistant —
 100 % locale une fois configurée.
 
-## Pourquoi cette intégration
+### Pourquoi cette intégration
 
 Ces pompes utilisent la puce Wi-Fi Tuya. Jusqu'ici, les contrôler dans Home
 Assistant demandait de passer par localTuya et de récupérer soi-même le
@@ -18,7 +22,7 @@ automatise cette récupération grâce à une simple connexion (par QR code)
 à votre compte Smart Life / Tuya Smart, puis fonctionne ensuite
 entièrement en local, comme localTuya.
 
-## Prérequis
+### Prérequis
 
 - Votre pompe doit déjà être ajoutée dans l'application **Smart Life** (ou
   Tuya Smart), tel que décrit dans le manuel d'instructions fourni avec la
@@ -37,7 +41,7 @@ entièrement en local, comme localTuya.
 - Home Assistant 2024.8.0 ou plus récent.
 - [HACS](https://hacs.xyz/) installé.
 
-## Installation
+### Installation
 
 Cette intégration n'est pas (encore) dans le dépôt par défaut de HACS —
 ajoutez-la comme dépôt personnalisé :
@@ -47,7 +51,7 @@ ajoutez-la comme dépôt personnalisé :
 3. Recherchez "GoPool Variable Speed Pump" dans HACS et installez-la.
 4. Redémarrez Home Assistant.
 
-## Configuration
+### Configuration
 
 Réglages → Appareils et services → Ajouter une intégration → **GoPool
 Variable Speed Pump**. Le config flow vous guide à travers 3 étapes :
@@ -69,19 +73,20 @@ animées) directement dans l'interface — inutile de les répéter ici.
 > jamais la pompe de votre compte Smart Life** : cela changerait sa
 > `local_key` et vous obligerait à reconfigurer l'intégration.
 
-## Entités créées
+### Entités créées
 
 | Type | Entité |
 |---|---|
-| `switch` | Power, Quick Clean, No Load Protection |
-| `number` | Current Speed, Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |
-| `time` | Stage 1-4 Start Time (heure + minute combinées en un seul sélecteur) |
+| `switch` (contrôle) | Power, Quick Clean, No Load Protection |
+| `number` (contrôle) | Pump Speed |
+| `number` (configuration) | Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |
+| `time` (configuration) | Stage 1-4 Start Time (heure + minute combinées en un seul sélecteur) |
 
 Seuls les DP (data points) confirmés fonctionnels localement sur ces
 pompes sont exposés — les DP inertes (fault, schedule, motor_operation_state,
 etc.) sont volontairement exclus.
 
-## Comment ça fonctionne techniquement
+### Comment ça fonctionne techniquement
 
 - **Communication locale** via [tinytuya](https://github.com/jasonacox/tinytuya),
   protocole Tuya version 3.5 (seule version confirmée sur cette ligne de
@@ -91,9 +96,10 @@ etc.) sont volontairement exclus.
   pour son propre login QR, en réutilisant l'identifiant client public de
   Home Assistant (`HA_3y9q4ak7g4ephrvke`) — pas un secret propre à ce
   projet, ni besoin de créer un compte développeur Tuya IoT.
-- Un polling local toutes les 30 secondes maintient l'état à jour.
+- Un polling local toutes les 5 secondes maintient l'état à jour, avec
+  reconnexion automatique en cas d'échec ponctuel.
 
-## Limitations connues
+### Limitations connues
 
 - Le mécanisme de QR login réutilise un identifiant client appartenant à
   Home Assistant. Cela fonctionne aujourd'hui (confirmé par la communauté),
@@ -101,7 +107,7 @@ etc.) sont volontairement exclus.
 - Testé sur GoPool AG1 ; les DP des IG1/IG2 sont supposément identiques
   mais pas encore confirmés sur le terrain.
 
-## Problèmes de connexion locale
+### Problèmes de connexion locale
 
 Si la pompe est injoignable après configuration :
 
@@ -113,12 +119,153 @@ Si la pompe est injoignable après configuration :
   si la pompe a été retirée/rajoutée dans Smart Life entretemps, sa
   `local_key` a changé.
 
-## Contribuer
+### Contribuer
 
 Les retours, rapports de bogue et suggestions sont les bienvenus via les
 [issues GitHub](https://github.com/alray31/gopool-pump/issues) de ce
 dépôt.
 
-## Licence
+### Marque de commerce
+
+GoPool et GoPiscine sont des marques de commerce appartenant à leurs
+propriétaires respectifs. Leur usage ici (nom, logo) est un usage
+nominatif (« fair use ») à des fins d'identification uniquement, dans un
+contexte strictement non commercial — cette intégration est un logiciel
+libre et gratuit. Ce projet n'est ni affilié, ni approuvé, ni sponsorisé
+par GoPool / GoPiscine, et ne cherche en aucune façon à générer un revenu
+à partir de cette marque de commerce.
+
+### Licence
 
 Voir [LICENSE](LICENSE).
+
+---
+
+## English
+
+[HACS](https://hacs.xyz/) integration to control a **GoPool / GoPiscine
+AG1, IG1, or IG2** variable-speed pool pump in Home Assistant — fully
+local once configured.
+
+### Why this integration
+
+These pumps use a Tuya Wi-Fi chip. Until now, controlling them in Home
+Assistant meant going through localTuya and retrieving the `device_id`
+and `local_key` yourself via a Tuya IoT developer account — a technical
+and tedious step for a new user. This integration automates that
+retrieval through a simple (QR-code) connection to your Smart Life /
+Tuya Smart account, then runs entirely locally afterward, just like
+localTuya.
+
+### Prerequisites
+
+- Your pump must already be added to the **Smart Life** app (or Tuya
+  Smart), as described in the instruction manual that came with the
+  pump.
+- Your pump must be connected to your local network over Wi-Fi and be on
+  the same subnet as Home Assistant. For example, if your Home Assistant
+  instance is at `192.168.1.2`, your pump's IP address must start with
+  `192.168.1.x`.
+- Know your pump's IP address (for example via your Wi-Fi router's admin
+  page). Assigning it a static IP address is strongly recommended — if
+  the pump's IP address changes later, you'll need to reconfigure this
+  integration.
+- Have your phone or tablet with the **Smart Life** app (or Tuya Smart)
+  within reach while setting up this integration.
+- Home Assistant 2024.8.0 or newer.
+- [HACS](https://hacs.xyz/) installed.
+
+### Installation
+
+This integration isn't (yet) in HACS's default store — add it as a
+custom repository:
+
+1. HACS → (⋮) menu in the top right → **Custom repositories**.
+2. URL: `https://github.com/alray31/gopool-pump`, category **Integration**.
+3. Search for "GoPool Variable Speed Pump" in HACS and install it.
+4. Restart Home Assistant.
+
+### Configuration
+
+Settings → Devices & services → Add integration → **GoPool Variable
+Speed Pump**. The config flow walks you through 3 steps:
+
+1. **Link your account** — enter your Smart Life app's user code
+   (Profile → Settings → Account and Security → User Code).
+2. **Scan the QR code** shown, using the Smart Life app.
+3. **Select your pump** from the list of linked devices, and confirm its
+   local IP address.
+
+Each step has its own detailed explanations (with animated screen
+captures) built right into the interface — no need to repeat them here.
+
+> **⚠️ Important:** this Smart Life cloud connection step is only needed
+> once, to automatically retrieve the pump's local credentials.
+> Afterward, the integration never talks to the cloud again. You can
+> safely delete the Smart Life app from your phone if you'd like — but
+> **never remove the pump from your Smart Life account**: doing so would
+> change its `local_key` and require you to reconfigure the integration.
+
+### Entities created
+
+| Type | Entity |
+|---|---|
+| `switch` (control) | Power, Quick Clean, No Load Protection |
+| `number` (control) | Pump Speed |
+| `number` (configuration) | Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |
+| `time` (configuration) | Stage 1-4 Start Time (hour + minute combined into a single picker) |
+
+Only data points (DPs) confirmed to work locally on these pumps are
+exposed — dead DPs (fault, schedule, motor_operation_state, etc.) are
+intentionally excluded.
+
+### How it works technically
+
+- **Local communication** via [tinytuya](https://github.com/jasonacox/tinytuya),
+  Tuya protocol version 3.5 (the only version confirmed on this pump
+  line — fixed, not a choice made during setup).
+- **Credential retrieval** via [tuya-device-sharing-sdk](https://pypi.org/project/tuya-device-sharing-sdk/),
+  the same mechanism Home Assistant's own official Tuya integration uses
+  for its own QR login, reusing Home Assistant's public client ID
+  (`HA_3y9q4ak7g4ephrvke`) — not a secret belonging to this project, and
+  no need to create a Tuya IoT developer account.
+- Local polling every 5 seconds keeps state up to date, with automatic
+  reconnection on a one-off failure.
+
+### Known limitations
+
+- The QR login mechanism reuses a client identifier that belongs to Home
+  Assistant. This works today (confirmed by the community), but Tuya
+  could restrict this third-party usage at some point without notice.
+- Tested on the GoPool AG1; IG1/IG2 DPs are presumed identical but not
+  yet confirmed in the field.
+
+### Local connection issues
+
+If the pump is unreachable after setup:
+
+- Confirm the pump and Home Assistant are on the same subnet
+  (especially if the pump is behind a Wi-Fi bridge/extender).
+- Confirm port 6668 isn't blocked by a firewall or VLAN isolation
+  between the two devices.
+- Remove and re-add the integration through the config flow — if the
+  pump was removed and re-added in Smart Life in the meantime, its
+  `local_key` has changed.
+
+### Contributing
+
+Feedback, bug reports, and suggestions are welcome via this repository's
+[GitHub issues](https://github.com/alray31/gopool-pump/issues).
+
+### Trademark notice
+
+GoPool and GoPiscine are trademarks belonging to their respective
+owners. Their use here (name, logo) is nominative use ("fair use") for
+identification purposes only, in a strictly non-commercial context —
+this integration is free, open-source software. This project is not
+affiliated with, endorsed by, or sponsored by GoPool / GoPiscine, and
+does not seek to generate any revenue from this trademark in any way.
+
+### License
+
+See [LICENSE](LICENSE).
