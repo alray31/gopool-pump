@@ -46,6 +46,12 @@ entièrement en local, comme localTuya.
 Cette intégration n'est pas (encore) dans le dépôt par défaut de HACS —
 ajoutez-la comme dépôt personnalisé :
 
+Cliquez sur ce bouton:
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?category=integration&repository=gopool-pump&owner=alray31)
+
+Ou manuellement:
+
 1. HACS → menu (⋮) en haut à droite → **Dépôts personnalisés**.
 2. URL : `https://github.com/alray31/gopool-pump`, catégorie **Intégration**.
 3. Recherchez "GoPool Variable Speed Pump" dans HACS et installez-la.
@@ -210,6 +216,12 @@ localTuya.
 
 This integration isn't (yet) in HACS's default store — add it as a
 custom repository:
+
+Use this button:
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?category=integration&repository=gopool-pump&owner=alray31)
+
+Or manually:
 
 1. HACS → (⋮) menu in the top right → **Custom repositories**.
 2. URL: `https://github.com/alray31/gopool-pump`, category **Integration**.
