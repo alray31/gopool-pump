@@ -40,7 +40,7 @@ entièrement en local.
 - Avoir votre téléphone ou votre tablette avec l'application **Smart
   Life** (ou Tuya Smart) à portée de main pendant la configuration de
   cette intégration.
-- Home Assistant 2024.8.0 ou plus récent.
+- Home Assistant 2026.3.0 ou plus récent.
 - [HACS](https://hacs.xyz/) installé.
 
 ### Installation
@@ -210,7 +210,7 @@ Tuya Smart account, then runs entirely locally afterward.
   integration.
 - Have your phone or tablet with the **Smart Life** app (or Tuya Smart)
   within reach while setting up this integration.
-- Home Assistant 2024.8.0 or newer.
+- Home Assistant 2026.3.0 or newer.
 - [HACS](https://hacs.xyz/) installed.
 
 ### Installation
