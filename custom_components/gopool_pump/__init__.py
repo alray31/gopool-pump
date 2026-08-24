@@ -105,9 +105,27 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug("status() raised %s", err)
             return None
 
+    @staticmethod
+    def _is_valid_result(result: dict | None) -> bool:
+        """True only for a genuinely usable status() response.
+
+        tinytuya doesn't only fail by returning a falsy value or omitting
+        "dps" entirely — a busy/contended socket (see the lock above for
+        why that still happens occasionally, e.g. right after the pump's
+        wifi module resets its local session following an external write)
+        can come back as something like {"Error": "...", "Err": "905",
+        "dps": {}}: a dict, with a "dps" key, that's still not usable data.
+        Accepting that as a "successful" poll used to overwrite the
+        coordinator's last known good state with an empty dict, which is
+        what actually caused entities to flash unavailable/blank even
+        after the thread-safety fix — not a failed poll at all, but a
+        *falsely accepted* one.
+        """
+        return bool(result) and bool(result.get("dps")) and not result.get("Error")
+
     async def _async_update_data(self) -> dict:
         result = await self._async_poll_once()
-        if not result or "dps" not in result:
+        if not self._is_valid_result(result):
             # A single failed read is common right after something else
             # (the physical pump controls, the Smart Life app, or another
             # local client such as localTuya if it's still configured on
@@ -120,7 +138,7 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("close() raised %s", err)
             result = await self._async_poll_once()
-        if not result or "dps" not in result:
+        if not self._is_valid_result(result):
             if self.data is not None:
                 # Optimistic: keep serving the last known state instead of
                 # raising UpdateFailed, which would grey out every entity.
