@@ -17,7 +17,11 @@
         "description": "Choisissez l'appareil dans votre compte lié, et entrez son adresse IP locale.",
         "data": {
           "device": "Appareil",
-          "ip": "Adresse IP locale"
+          "ip": "Adresse IP locale",
+          "pump_model": "Modèle de pompe"
+        },
+        "data_description": {
+          "pump_model": "Utilisé uniquement pour calculer les capteurs Puissance / Énergie à partir du RPM de la pompe. Pas certain? Vérifiez le modèle inscrit sur votre pompe — vous pourrez changer ceci plus tard sans reconfigurer la pompe. Note : Puissance/Énergie affichent \"indisponible\" pour IG1 et IG2 tant qu'une courbe RPM→W calibrée n'a pas été ajoutée pour ces modèles."
         }
       }
     },
@@ -29,6 +33,17 @@
       "already_configured": "Cette pompe est déjà configurée.",
       "device_list_failed": "Impossible de lister les appareils de votre compte Tuya après la connexion.",
       "no_devices_found": "Aucun appareil avec une local key utilisable n'a été trouvé sur ce compte."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options GoPool Pump",
+        "description": "Changez le modèle de pompe utilisé pour calculer les capteurs Puissance / Énergie. Note : Puissance/Énergie affichent \"indisponible\" pour IG1 et IG2 tant qu'une courbe RPM→W calibrée n'a pas été ajoutée pour ces modèles.",
+        "data": {
+          "pump_model": "Modèle de pompe"
+        }
+      }
     }
   }
 }

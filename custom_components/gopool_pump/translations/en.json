@@ -17,7 +17,11 @@
         "description": "Pick the device from your linked account, and enter its local IP address.",
         "data": {
           "device": "Device",
-          "ip": "Local IP address"
+          "ip": "Local IP address",
+          "pump_model": "Pump model"
+        },
+        "data_description": {
+          "pump_model": "Used only to calculate the Power Draw / Energy sensors from the pump's RPM. Not sure? Check the model printed on your pump — you can change this later without reconfiguring the pump. Note: Power/Energy show as unavailable for IG1 and IG2 until a calibrated RPM→W curve is added for those models."
         }
       }
     },
@@ -29,6 +33,17 @@
       "already_configured": "This pump is already configured.",
       "device_list_failed": "Could not list devices from your Tuya account after login.",
       "no_devices_found": "No device with a usable local key was found on this account."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "GoPool Pump options",
+        "description": "Change the pump model used to calculate the Power Draw / Energy sensors. Note: Power/Energy show as unavailable for IG1 and IG2 until a calibrated RPM→W curve is added for those models.",
+        "data": {
+          "pump_model": "Pump model"
+        }
+      }
     }
   }
 }
