@@ -141,8 +141,8 @@ directement sur son écran (comme la AG1), votre contribution serait très
 appréciée : notez la valeur affichée (en watts) à au minimum ces deux
 paliers,
 
-- **1150 RPM** (minimum)
-- **3450 RPM** (maximum)
+- **Minimum RPM**
+- **Maximum RPM**
 
 et idéalement aux mêmes RPM intermédiaires déjà mesurés pour la AG1
 (1500, 2000, 2450 et 2850 RPM), pour une interpolation aussi précise que
@@ -302,8 +302,8 @@ its power draw directly on its screen (like the AG1 does), your
 contribution would be very welcome: note down the displayed value (in
 watts) at least at these two points,
 
-- **1150 RPM** (minimum)
-- **3450 RPM** (maximum)
+- **Minimum RPM** (minimum)
+- **Maximum RPM** (maximum)
 
 and ideally at the same intermediate RPM steps already measured for the
 AG1 (1500, 2000, 2450, and 2850 RPM), for interpolation as accurate as
