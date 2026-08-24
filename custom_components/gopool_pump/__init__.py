@@ -69,6 +69,17 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         # logic below fails. Every blocking call to self.device goes
         # through this lock so at most one is ever in flight.
         self._device_lock = threading.Lock()
+        # tinytuya's status() doesn't always return every DP — right after
+        # a set command (ours or an external one, e.g. Smart Life), the
+        # device commonly answers with a "delta" response containing only
+        # the DP(s) that just changed, not the full ~23-key set. Returning
+        # that partial dict as-is used to REPLACE self.data wholesale,
+        # which wiped out every other DP for one poll cycle — exactly the
+        # "everything but the entity I just changed goes unavailable for a
+        # few seconds" symptom. This cache is updated incrementally
+        # (merged, never replaced) so a partial response only ever adds to
+        # what's already known instead of blanking it.
+        self._dps_cache: dict[str, object] = {}
 
     def _sync_status(self) -> dict | None:
         with self._device_lock:
@@ -152,7 +163,11 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
                 )
                 return self.data
             raise UpdateFailed(f"No response from pump: {result}")
-        return result["dps"]
+        # Merge, don't replace: a "delta" response containing only the
+        # DP(s) that just changed must not erase every other DP we already
+        # know — see the comment on self._dps_cache above.
+        self._dps_cache.update(result["dps"])
+        return dict(self._dps_cache)
 
     async def async_write_dp(self, dp_id: str, value) -> None:
         """Write a single DP locally and refresh state."""
