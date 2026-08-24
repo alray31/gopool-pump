@@ -24,14 +24,13 @@ CONF_USER_CODE = "user_code"
 # the call sites) so a future pump generation needing a different version
 # wouldn't require a data migration.
 DEFAULT_PROTOCOL_VERSION = "3.5"
-DEFAULT_SCAN_INTERVAL = 5  # seconds. The earlier "slow bridge" theory turned
-# out to be wrong — once dev_type="device22" was removed, a raw TCP connect
-# measured 0.06s and status() responds quickly, so external changes (the
-# physical pump controls, the Smart Life app) now show up in HA within a
-# few seconds instead of up to 30s. Combined with the retry-on-failure in
-# __init__.py's _async_update_data, this should stay reliable — but if you
-# ever see the pump's wifi module struggle under this polling rate, raise
-# this back up before anything else.
+DEFAULT_SCAN_INTERVAL = 3  # seconds. A raw TCP connect measured 0.06s once
+# dev_type="device22" was removed, so status() responds quickly — and since
+# _async_update_data now falls back to the last known state instead of
+# raising on a failed poll (see __init__.py), a transient miss at this rate
+# is invisible to the user rather than a visible availability flicker. If
+# the pump's wifi module ever struggles under this polling rate, raise this
+# back up before anything else.
 
 # --------------------------------------------------------------------------
 # Tuya Cloud "QR login" constants — REUSED from Home Assistant's own public,
@@ -62,9 +61,9 @@ TUYA_RESPONSE_MSG = "msg"
 # platform: "switch" | "number"
 # category: omitted -> primary control (shown at the top of the device
 #   page); "config" -> secondary/configuration entity (shown collapsed
-#   under "Configuration"). Only the 4 entities the user actually
-#   interacts with day-to-day (Power, Pump Speed, Quick Clean,
-#   No Load Protection) are controls — everything else is setup/tuning.
+#   under "Configuration"). Only the 3 entities the user actually
+#   interacts with day-to-day (Power, Pump Speed, Quick Clean) are
+#   controls — everything else is setup/tuning.
 # --------------------------------------------------------------------------
 DP_MAP: dict[str, dict] = {
     # Power
@@ -120,6 +119,7 @@ DP_MAP: dict[str, dict] = {
         "key": "no_load_protection",
         "name": "No Load Protection",
         "icon": "mdi:shield-check",
+        "category": "config",
     },
     "188": {
         "platform": "number",
@@ -167,15 +167,16 @@ for _stage, _dps in _STAGE_DP_IDS.items():
         "category": "config",
     }
     # start_hour / start_minute are intentionally NOT added to DP_MAP as
-    # separate number entities — the time.py platform combines them into
+    # separate number entities — the select.py platform combines them into
     # one HH:MM entity per stage instead (see STAGE_START_TIME_DPS below).
 
 del _stage, _dps
 
 # --------------------------------------------------------------------------
-# Stage 1-4 combined start-time entities (time.py): each maps to two DPs —
-# an hour (0-23, step 1) and a minute (0/10/20/.../50, step 10) — exposed
-# as a single HH:MM time picker instead of two separate number entities.
+# Stage 1-4 combined start-time entities (select.py): each maps to two DPs —
+# an hour (0-23, step 1) and a minute (0/10/20/.../50, step 10) — exposed as
+# a single dropdown of exact "HH:MM" strings instead of a free-form time
+# picker, so the user can never select a minute value the pump rejects.
 # --------------------------------------------------------------------------
 STAGE_START_TIME_DPS: dict[int, dict[str, str]] = {
     stage: {"start_hour": dps["start_hour"], "start_minute": dps["start_minute"]}

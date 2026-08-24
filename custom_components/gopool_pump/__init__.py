@@ -27,7 +27,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["switch", "number", "time"]
+PLATFORMS = ["switch", "number", "select"]
 
 
 class GoPoolCoordinator(DataUpdateCoordinator[dict]):
@@ -62,15 +62,27 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         result = await self.hass.async_add_executor_job(self.device.status)
         if not result or "dps" not in result:
             # A single failed read is common right after something else
-            # (the physical pump controls, the Smart Life app) talks to the
-            # pump — it can leave our persistent socket in a stale state.
-            # Force a fresh connection and retry once before surfacing
-            # UpdateFailed (which greys out every entity) — this keeps a
-            # one-off hiccup from making the whole device flash unavailable.
+            # (the physical pump controls, the Smart Life app, or another
+            # local client such as localTuya if it's still configured on
+            # this same pump — most Tuya wifi modules only really like one
+            # local session at a time) talks to the pump. Force a fresh
+            # connection and retry once before giving up on this cycle.
             _LOGGER.debug("First status() read failed (%s) — reconnecting and retrying once", result)
             await self.hass.async_add_executor_job(self.device.close)
             result = await self.hass.async_add_executor_job(self.device.status)
         if not result or "dps" not in result:
+            if self.data is not None:
+                # Optimistic: keep serving the last known state instead of
+                # raising UpdateFailed, which would grey out every entity.
+                # A transient miss is common and self-corrects next cycle;
+                # only the very first refresh (no prior data yet) still
+                # raises below, so setup properly fails if the pump was
+                # never reachable at all.
+                _LOGGER.warning(
+                    "Poll failed (%s) — keeping last known state instead of going unavailable",
+                    result,
+                )
+                return self.data
             raise UpdateFailed(f"No response from pump: {result}")
         return result["dps"]
 
