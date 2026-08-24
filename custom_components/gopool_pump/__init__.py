@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
+import threading
 
 import tinytuya
 
@@ -57,6 +58,33 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         # was slow.
         self.device.set_socketTimeout(8)
         self.device.set_socketPersistent(True)
+        # tinytuya's Device/socket object isn't thread-safe. Executor jobs
+        # run on HA's shared worker thread pool, so a scheduled poll
+        # (status()) and a write triggered by the user touching an entity
+        # (set_value()/set_multiple_values(), or that write's own follow-up
+        # refresh) can end up on two different threads at once, both
+        # talking to the same persistent socket — that's a genuine data
+        # race, not just a "device is briefly busy" situation, and it can
+        # corrupt both operations badly enough that even the retry-once
+        # logic below fails. Every blocking call to self.device goes
+        # through this lock so at most one is ever in flight.
+        self._device_lock = threading.Lock()
+
+    def _sync_status(self) -> dict | None:
+        with self._device_lock:
+            return self.device.status()
+
+    def _sync_close(self) -> None:
+        with self._device_lock:
+            self.device.close()
+
+    def _sync_set_value(self, dp_id: str, value) -> None:
+        with self._device_lock:
+            self.device.set_value(dp_id, value)
+
+    def _sync_set_multiple_values(self, values: dict[str, object]) -> None:
+        with self._device_lock:
+            self.device.set_multiple_values(values)
 
     async def _async_poll_once(self) -> dict | None:
         """Read status() once, never letting an exception escape.
@@ -72,7 +100,7 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         always gets a chance to run.
         """
         try:
-            return await self.hass.async_add_executor_job(self.device.status)
+            return await self.hass.async_add_executor_job(self._sync_status)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug("status() raised %s", err)
             return None
@@ -88,7 +116,7 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             # connection and retry once before giving up on this cycle.
             _LOGGER.debug("First status() read failed (%s) — reconnecting and retrying once", result)
             try:
-                await self.hass.async_add_executor_job(self.device.close)
+                await self.hass.async_add_executor_job(self._sync_close)
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("close() raised %s", err)
             result = await self._async_poll_once()
@@ -110,7 +138,7 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
 
     async def async_write_dp(self, dp_id: str, value) -> None:
         """Write a single DP locally and refresh state."""
-        await self.hass.async_add_executor_job(self.device.set_value, dp_id, value)
+        await self.hass.async_add_executor_job(self._sync_set_value, dp_id, value)
         await self.async_request_refresh()
 
     async def async_write_dps(self, values: dict[str, object]) -> None:
@@ -120,7 +148,7 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         start hour + start minute as one time picker) so both land in one
         request instead of two separate round trips.
         """
-        await self.hass.async_add_executor_job(self.device.set_multiple_values, values)
+        await self.hass.async_add_executor_job(self._sync_set_multiple_values, values)
         await self.async_request_refresh()
 
 
