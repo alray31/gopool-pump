@@ -36,6 +36,7 @@ from .const import (
     DEFAULT_PUMP_MODEL,
     DOMAIN,
     PUMP_MODELS,
+    QR_SCAN_GIF_URL,
     TUYA_CLIENT_ID,
     TUYA_RESPONSE_CODE,
     TUYA_RESPONSE_MSG,
@@ -43,6 +44,7 @@ from .const import (
     TUYA_RESPONSE_RESULT,
     TUYA_RESPONSE_SUCCESS,
     TUYA_SCHEMA,
+    USER_CODE_GIF_URL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -102,17 +104,20 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
             self.__login_control = LoginControl()
 
         errors: dict[str, str] = {}
-        placeholders: dict[str, str] = {}
+        # Always present: hassfest's translation linter forbids a literal
+        # URL inside a translation string, so the GIF's URL is referenced
+        # in strings.json/translations/*.json as "{user_code_gif_url}" and
+        # supplied here instead — needed on every render of this step, not
+        # just the error path.
+        placeholders: dict[str, str] = {"user_code_gif_url": USER_CODE_GIF_URL}
 
         if user_input is not None:
             success, response = await self.__async_get_qr_code(user_input[CONF_USER_CODE])
             if success:
                 return await self.async_step_scan()
             errors["base"] = "login_error"
-            placeholders = {
-                TUYA_RESPONSE_MSG: str(response.get(TUYA_RESPONSE_MSG, "Unknown error")),
-                TUYA_RESPONSE_CODE: str(response.get(TUYA_RESPONSE_CODE, "0")),
-            }
+            placeholders[TUYA_RESPONSE_MSG] = str(response.get(TUYA_RESPONSE_MSG, "Unknown error"))
+            placeholders[TUYA_RESPONSE_CODE] = str(response.get(TUYA_RESPONSE_CODE, "0"))
 
         return self.async_show_form(
             step_id="user",
@@ -151,8 +156,15 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
 
+        # Same reasoning as async_step_user: hassfest rejects a literal URL
+        # in a translation string, so the GIF is referenced there as
+        # "{qr_scan_gif_url}" and supplied here on every render.
+        placeholders: dict[str, str] = {"qr_scan_gif_url": QR_SCAN_GIF_URL}
+
         if user_input is None:
-            return self.async_show_form(step_id="scan", data_schema=qr_schema)
+            return self.async_show_form(
+                step_id="scan", data_schema=qr_schema, description_placeholders=placeholders
+            )
 
         ret, info = await self.hass.async_add_executor_job(
             self.__login_control.login_result,
@@ -164,14 +176,13 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
             # QR token likely expired — request a fresh one and let the
             # user rescan.
             await self.__async_get_qr_code(self.__user_code)
+            placeholders[TUYA_RESPONSE_MSG] = str(info.get(TUYA_RESPONSE_MSG, "Unknown error"))
+            placeholders[TUYA_RESPONSE_CODE] = str(info.get(TUYA_RESPONSE_CODE, 0))
             return self.async_show_form(
                 step_id="scan",
                 errors={"base": "login_error"},
                 data_schema=qr_schema,
-                description_placeholders={
-                    TUYA_RESPONSE_MSG: str(info.get(TUYA_RESPONSE_MSG, "Unknown error")),
-                    TUYA_RESPONSE_CODE: str(info.get(TUYA_RESPONSE_CODE, 0)),
-                },
+                description_placeholders=placeholders,
             )
 
         self.__token_info = {
