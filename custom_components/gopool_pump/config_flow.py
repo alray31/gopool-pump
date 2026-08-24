@@ -19,15 +19,23 @@ from typing import Any
 import tinytuya
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 
 from .const import (
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
+    CONF_PUMP_MODEL,
     CONF_USER_CODE,
     DEFAULT_PROTOCOL_VERSION,
+    DEFAULT_PUMP_MODEL,
     DOMAIN,
+    PUMP_MODELS,
     TUYA_CLIENT_ID,
     TUYA_RESPONSE_CODE,
     TUYA_RESPONSE_MSG,
@@ -66,6 +74,10 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for GoPool Variable Speed Pump."""
 
     VERSION = 1
+
+    @staticmethod
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        return GoPoolPumpOptionsFlow()
 
     def __init__(self) -> None:
         self.__login_control = None
@@ -229,6 +241,7 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
             dev_id = user_input["device"]
             device = self.__devices[dev_id]
             ip = user_input["ip"]
+            pump_model = user_input[CONF_PUMP_MODEL]
 
             ok = await self.hass.async_add_executor_job(
                 _test_connection_sync, ip, dev_id, device["local_key"]
@@ -244,6 +257,7 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_DEVICE_ID: dev_id,
                         CONF_LOCAL_KEY: device["local_key"],
                         CONF_PROTOCOL_VERSION: DEFAULT_PROTOCOL_VERSION,
+                        CONF_PUMP_MODEL: pump_model,
                     },
                 )
             errors["base"] = "cannot_connect"
@@ -262,9 +276,36 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required("device"): vol.In(device_choices),
                     vol.Required("ip", default=default_ip): str,
+                    vol.Required(CONF_PUMP_MODEL, default=DEFAULT_PUMP_MODEL): vol.In(
+                        PUMP_MODELS
+                    ),
                 }
             ),
             errors=errors,
+        )
+
+
+class GoPoolPumpOptionsFlow(OptionsFlow):
+    """Lets the pump model — used only to pick the RPM->W calibration curve
+    for the Power Draw / Energy sensors, see RPM_POWER_TABLES in const.py —
+    be changed after initial setup, without deleting and re-adding the
+    integration."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current = self.config_entry.options.get(
+            CONF_PUMP_MODEL,
+            self.config_entry.data.get(CONF_PUMP_MODEL, DEFAULT_PUMP_MODEL),
+        )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {vol.Required(CONF_PUMP_MODEL, default=current): vol.In(PUMP_MODELS)}
+            ),
         )
 
 

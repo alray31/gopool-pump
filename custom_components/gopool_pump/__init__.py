@@ -27,7 +27,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["switch", "number", "select"]
+PLATFORMS = ["switch", "number", "select", "sensor"]
 
 
 class GoPoolCoordinator(DataUpdateCoordinator[dict]):
@@ -58,8 +58,27 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         self.device.set_socketTimeout(8)
         self.device.set_socketPersistent(True)
 
+    async def _async_poll_once(self) -> dict | None:
+        """Read status() once, never letting an exception escape.
+
+        tinytuya doesn't always fail politely with an error dict — a
+        socket reset (e.g. another local client such as localTuya briefly
+        taking over the pump's single local session) can raise instead of
+        returning one. An uncaught exception here would propagate out of
+        _async_update_data and make the coordinator set
+        last_update_success = False, which greys out every entity — the
+        exact flicker this is meant to prevent. Treat a raise exactly like
+        a falsy/error result so the retry + optimistic-fallback logic below
+        always gets a chance to run.
+        """
+        try:
+            return await self.hass.async_add_executor_job(self.device.status)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("status() raised %s", err)
+            return None
+
     async def _async_update_data(self) -> dict:
-        result = await self.hass.async_add_executor_job(self.device.status)
+        result = await self._async_poll_once()
         if not result or "dps" not in result:
             # A single failed read is common right after something else
             # (the physical pump controls, the Smart Life app, or another
@@ -68,8 +87,11 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             # local session at a time) talks to the pump. Force a fresh
             # connection and retry once before giving up on this cycle.
             _LOGGER.debug("First status() read failed (%s) — reconnecting and retrying once", result)
-            await self.hass.async_add_executor_job(self.device.close)
-            result = await self.hass.async_add_executor_job(self.device.status)
+            try:
+                await self.hass.async_add_executor_job(self.device.close)
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("close() raised %s", err)
+            result = await self._async_poll_once()
         if not result or "dps" not in result:
             if self.data is not None:
                 # Optimistic: keep serving the last known state instead of
@@ -115,7 +137,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Reload the entry when options change (currently just the pump model,
+    # set via the options flow in config_flow.py) so the Power/Energy
+    # sensors pick up the new RPM->W calibration curve immediately.
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

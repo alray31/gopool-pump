@@ -18,6 +18,12 @@ CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_PROTOCOL_VERSION = "protocol_version"
 CONF_USER_CODE = "user_code"
+CONF_PUMP_MODEL = "pump_model"
+
+# Used only to pick the right RPM->W calibration curve (see RPM_POWER_TABLES
+# below) for the Power Draw / Energy sensors — has no effect on control.
+PUMP_MODELS = ["AG1", "IG1", "IG2"]
+DEFAULT_PUMP_MODEL = "AG1"
 
 # Fixed, not user-selectable: every GoPool AG1/IG1/IG2 pump confirmed so far
 # uses local protocol 3.5. Still stored per config entry (not hardcoded at
@@ -65,9 +71,15 @@ TUYA_RESPONSE_MSG = "msg"
 #   interacts with day-to-day (Power, Pump Speed, Quick Clean) are
 #   controls — everything else is setup/tuning.
 # --------------------------------------------------------------------------
+# Named separately from DP_MAP's string keys because sensor.py also needs
+# them directly (to read the power switch state / commanded RPM when
+# computing the Power Draw and Energy sensors).
+DP_POWER_SWITCH = "1"
+DP_PUMP_SPEED = "103"
+
 DP_MAP: dict[str, dict] = {
     # Power
-    "1": {
+    DP_POWER_SWITCH: {
         "platform": "switch",
         "key": "power",
         "name": "Power",
@@ -75,7 +87,7 @@ DP_MAP: dict[str, dict] = {
     },
     # Current / commanded speed — DP103 actually controls the speed despite
     # its "current" name (confirmed empirically, see README).
-    "103": {
+    DP_PUMP_SPEED: {
         "platform": "number",
         "key": "current_speed",
         "name": "Pump Speed",
@@ -181,4 +193,33 @@ del _stage, _dps
 STAGE_START_TIME_DPS: dict[int, dict[str, str]] = {
     stage: {"start_hour": dps["start_hour"], "start_minute": dps["start_minute"]}
     for stage, dps in _STAGE_DP_IDS.items()
+}
+
+# --------------------------------------------------------------------------
+# RPM -> instantaneous power (W) calibration curve, per pump model. Used by
+# sensor.py to compute a native "Power Draw" sensor (piecewise-linear
+# interpolation between the points below) and, integrated over time in
+# Python, a cumulative "Energy" sensor — no HA template or helper needed.
+#
+# AG1: measured directly on a real AG1 pump (6 real data points, see this
+#   project's README for the methodology) — sensor.py interpolates between
+#   them for the other 50 RPM steps.
+# IG1 / IG2: no measurements yet. Deliberately left as None instead of
+#   reusing the AG1 curve or guessing — the motor/impeller differ enough
+#   between lines that a borrowed curve could be meaningfully wrong. The
+#   Power Draw / Energy sensors report "unavailable" for these two models
+#   until real RPM->W data is added here (just extend this dict — no other
+#   code change needed).
+# --------------------------------------------------------------------------
+RPM_POWER_TABLES: dict[str, list[tuple[int, int]] | None] = {
+    "AG1": [
+        (1150, 50),
+        (1500, 83),
+        (2000, 160),
+        (2450, 271),
+        (2850, 374),
+        (3450, 637),
+    ],
+    "IG1": None,
+    "IG2": None,
 }
