@@ -51,13 +51,25 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             local_key=entry.data[CONF_LOCAL_KEY],
         )
         self.device.set_version(float(entry.data.get(CONF_PROTOCOL_VERSION, "3.5")))
-        # Same 20s timeout as the config flow's connection test — this pump
-        # sits behind a slow wifi bridge and the default 5s was too short.
-        self.device.set_socketTimeout(20)
+        # A raw TCP connect to this pump measured 0.06s once the real bug
+        # (dev_type="device22") was removed — 8s is generous headroom over
+        # that, not the 20s used while we still thought the network itself
+        # was slow.
+        self.device.set_socketTimeout(8)
         self.device.set_socketPersistent(True)
 
     async def _async_update_data(self) -> dict:
         result = await self.hass.async_add_executor_job(self.device.status)
+        if not result or "dps" not in result:
+            # A single failed read is common right after something else
+            # (the physical pump controls, the Smart Life app) talks to the
+            # pump — it can leave our persistent socket in a stale state.
+            # Force a fresh connection and retry once before surfacing
+            # UpdateFailed (which greys out every entity) — this keeps a
+            # one-off hiccup from making the whole device flash unavailable.
+            _LOGGER.debug("First status() read failed (%s) — reconnecting and retrying once", result)
+            await self.hass.async_add_executor_job(self.device.close)
+            result = await self.hass.async_add_executor_job(self.device.status)
         if not result or "dps" not in result:
             raise UpdateFailed(f"No response from pump: {result}")
         return result["dps"]

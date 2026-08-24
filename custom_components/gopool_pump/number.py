@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import GoPoolCoordinator
@@ -23,12 +23,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 
 class GoPoolNumber(CoordinatorEntity[GoPoolCoordinator], NumberEntity):
-    """A single numeric DP exposed as a number (no slider — matches the
-    original localtuya template preference: box/buttons input, not a
-    slider)."""
+    """A single numeric DP exposed as a number.
+
+    Box input by default (matches the original localtuya template
+    preference), except entities that opt into a slider via
+    spec["mode"] == "slider" (currently just Pump Speed)."""
 
     _attr_has_entity_name = True
-    _attr_mode = NumberMode.BOX
 
     def __init__(self, coordinator: GoPoolCoordinator, entry: ConfigEntry, dp_id: str, spec: dict) -> None:
         super().__init__(coordinator)
@@ -39,6 +40,10 @@ class GoPoolNumber(CoordinatorEntity[GoPoolCoordinator], NumberEntity):
         self._attr_native_min_value = spec["min"]
         self._attr_native_max_value = spec["max"]
         self._attr_native_step = spec["step"]
+        self._attr_mode = NumberMode.SLIDER if spec.get("mode") == "slider" else NumberMode.BOX
+        self._attr_entity_category = (
+            EntityCategory.CONFIG if spec.get("category") == "config" else None
+        )
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_{spec['key']}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},

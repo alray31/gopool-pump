@@ -14,7 +14,7 @@ from datetime import time
 from homeassistant.components.time import TimeEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import GoPoolCoordinator
@@ -43,6 +43,7 @@ class GoPoolStageStartTime(CoordinatorEntity[GoPoolCoordinator], TimeEntity):
         self._minute_dp = dps["start_minute"]
         self._attr_name = f"Stage {stage} Start Time"
         self._attr_icon = "mdi:clock-start"
+        self._attr_entity_category = EntityCategory.CONFIG
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_stage_{stage}_start_time"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},

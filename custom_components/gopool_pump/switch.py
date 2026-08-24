@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import GoPoolCoordinator
@@ -32,6 +32,9 @@ class GoPoolSwitch(CoordinatorEntity[GoPoolCoordinator], SwitchEntity):
         self._dp_id = dp_id
         self._attr_name = spec["name"]
         self._attr_icon = spec.get("icon")
+        self._attr_entity_category = (
+            EntityCategory.CONFIG if spec.get("category") == "config" else None
+        )
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_{spec['key']}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},

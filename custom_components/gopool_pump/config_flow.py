@@ -51,7 +51,10 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str) -> bool:
     try:
         device = tinytuya.OutletDevice(dev_id=device_id, address=ip, local_key=local_key)
         device.set_version(float(DEFAULT_PROTOCOL_VERSION))
-        device.set_socketTimeout(20)
+        # 8s: generous margin over the ~0.06s TCP connect measured on a real
+        # pump — kept short so a genuinely unreachable IP fails fast during
+        # setup instead of leaving the user staring at a spinner.
+        device.set_socketTimeout(8)
         result = device.status()
         return bool(result and "dps" in result and not result.get("Error"))
     except Exception:  # noqa: BLE001

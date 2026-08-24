@@ -24,10 +24,14 @@ CONF_USER_CODE = "user_code"
 # the call sites) so a future pump generation needing a different version
 # wouldn't require a data migration.
 DEFAULT_PROTOCOL_VERSION = "3.5"
-DEFAULT_SCAN_INTERVAL = 30  # seconds — bumped from 15: this pump sits behind a
-# slow wifi bridge, and each local poll can now take up to ~20s (see the
-# socket timeout in __init__.py / config_flow.py), so 15s risked overlapping
-# requests.
+DEFAULT_SCAN_INTERVAL = 5  # seconds. The earlier "slow bridge" theory turned
+# out to be wrong — once dev_type="device22" was removed, a raw TCP connect
+# measured 0.06s and status() responds quickly, so external changes (the
+# physical pump controls, the Smart Life app) now show up in HA within a
+# few seconds instead of up to 30s. Combined with the retry-on-failure in
+# __init__.py's _async_update_data, this should stay reliable — but if you
+# ever see the pump's wifi module struggle under this polling rate, raise
+# this back up before anything else.
 
 # --------------------------------------------------------------------------
 # Tuya Cloud "QR login" constants — REUSED from Home Assistant's own public,
@@ -56,6 +60,11 @@ TUYA_RESPONSE_MSG = "msg"
 # --------------------------------------------------------------------------
 # DP map: dp_id (str, as used by tinytuya's status() dict) -> entity spec.
 # platform: "switch" | "number"
+# category: omitted -> primary control (shown at the top of the device
+#   page); "config" -> secondary/configuration entity (shown collapsed
+#   under "Configuration"). Only the 4 entities the user actually
+#   interacts with day-to-day (Power, Pump Speed, Quick Clean,
+#   No Load Protection) are controls — everything else is setup/tuning.
 # --------------------------------------------------------------------------
 DP_MAP: dict[str, dict] = {
     # Power
@@ -70,12 +79,13 @@ DP_MAP: dict[str, dict] = {
     "103": {
         "platform": "number",
         "key": "current_speed",
-        "name": "Current Speed",
+        "name": "Pump Speed",
         "unit": "rpm",
         "min": 1150,
         "max": 3450,
         "step": 50,
         "icon": "mdi:speedometer",
+        "mode": "slider",
     },
     "189": {
         "platform": "switch",
@@ -92,6 +102,7 @@ DP_MAP: dict[str, dict] = {
         "max": 3450,
         "step": 10,
         "icon": "mdi:speedometer",
+        "category": "config",
     },
     "191": {
         "platform": "number",
@@ -102,6 +113,7 @@ DP_MAP: dict[str, dict] = {
         "max": 600,
         "step": 10,
         "icon": "mdi:camera-timer",
+        "category": "config",
     },
     "106": {
         "platform": "switch",
@@ -118,6 +130,7 @@ DP_MAP: dict[str, dict] = {
         "max": 600,
         "step": 1,
         "icon": "mdi:timer-sand",
+        "category": "config",
     },
 }
 
@@ -140,6 +153,7 @@ for _stage, _dps in _STAGE_DP_IDS.items():
         "max": 3450,
         "step": 50,
         "icon": "mdi:speedometer",
+        "category": "config",
     }
     DP_MAP[_dps["duration"]] = {
         "platform": "number",
@@ -150,6 +164,7 @@ for _stage, _dps in _STAGE_DP_IDS.items():
         "max": 24,
         "step": 1,
         "icon": "mdi:camera-timer",
+        "category": "config",
     }
     # start_hour / start_minute are intentionally NOT added to DP_MAP as
     # separate number entities — the time.py platform combines them into
