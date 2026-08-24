@@ -63,6 +63,16 @@ TUYA_RESPONSE_CODE = "code"
 TUYA_RESPONSE_MSG = "msg"
 
 # --------------------------------------------------------------------------
+# Config flow step GIFs. HA's translation linter (hassfest) rejects a raw
+# URL embedded directly in a translation string — it must be passed as a
+# description_placeholder instead, with the string itself only holding a
+# "{placeholder}" token (see config_flow.py, which merges these into every
+# description_placeholders dict for the "user" and "scan" steps).
+# --------------------------------------------------------------------------
+USER_CODE_GIF_URL = "https://raw.githubusercontent.com/alray31/gopool-pump/main/docs/images/user_code.gif"
+QR_SCAN_GIF_URL = "https://raw.githubusercontent.com/alray31/gopool-pump/main/docs/images/qr_scan.gif"
+
+# --------------------------------------------------------------------------
 # DP map: dp_id (str, as used by tinytuya's status() dict) -> entity spec.
 # platform: "switch" | "number"
 # category: omitted -> primary control (shown at the top of the device

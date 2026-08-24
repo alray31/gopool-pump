@@ -3,14 +3,14 @@
     "step": {
       "user": {
         "title": "Link your Smart Life / Tuya Smart account",
-        "description": "**How this works:** once configured, this integration controls your pump entirely locally, without going through the cloud. Initial setup, however, requires a one-time connection to the Smart Life cloud to automatically retrieve your pump's device ID and local key — you won't need to look them up manually.\n\nBefore continuing, make sure your pump has already been added to the Smart Life app, as described in your pump's instruction manual.\n\nOnce setup is complete, the Smart Life app is no longer required, unless you wish to keep using it alongside this integration.\n\n**⚠️ Warning:** if you remove and re-add your pump in Smart Life, its local key will change, and you will need to reconfigure this integration accordingly. You may safely delete the Smart Life app from your phone, but **never remove the pump from your Smart Life account**.\n\n**Where to find your user code:** open the Smart Life app → Profile (bottom-right icon) → gear icon (Settings) → Account and Security → User Code.\n\n![How to find your user code](https://raw.githubusercontent.com/alray31/gopool-pump/main/docs/images/user_code.gif)",
+        "description": "**How this works:** once configured, this integration controls your pump entirely locally, without going through the cloud. Initial setup, however, requires a one-time connection to the Smart Life cloud to automatically retrieve your pump's device ID and local key — you won't need to look them up manually.\n\nBefore continuing, make sure your pump has already been added to the Smart Life app, as described in your pump's instruction manual.\n\nOnce setup is complete, the Smart Life app is no longer required, unless you wish to keep using it alongside this integration.\n\n**⚠️ Warning:** if you remove and re-add your pump in Smart Life, its local key will change, and you will need to reconfigure this integration accordingly. You may safely delete the Smart Life app from your phone, but **never remove the pump from your Smart Life account**.\n\n**Where to find your user code:** open the Smart Life app → Profile (bottom-right icon) → gear icon (Settings) → Account and Security → User Code.\n\n![How to find your user code]({user_code_gif_url})",
         "data": {
           "user_code": "User code"
         }
       },
       "scan": {
         "title": "Scan this QR code",
-        "description": "Open the Smart Life or Tuya Smart app, then tap the scan icon (usually in the top-right corner of the profile screen). Scan the code below, confirm on your phone, then press Submit here.\n\n![How to scan the QR code](https://raw.githubusercontent.com/alray31/gopool-pump/main/docs/images/qr_scan.gif)"
+        "description": "Open the Smart Life or Tuya Smart app, then tap the scan icon (usually in the top-right corner of the profile screen). Scan the code below, confirm on your phone, then press Submit here.\n\n![How to scan the QR code]({qr_scan_gif_url})"
       },
       "pick_device": {
         "title": "Select your pump",
