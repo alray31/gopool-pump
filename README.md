@@ -1,5 +1,7 @@
 # GoPool Variable Speed Pump
 
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat)](https://github.com/hacs/integration) [![HACS Validation](https://github.com/alray31/gopool-pump/actions/workflows/hacs.yml/badge.svg)](https://github.com/alray31/gopool-pump/actions/workflows/hacs.yml) [![Hassfest](https://github.com/alray31/gopool-pump/actions/workflows/hassfest.yml/badge.svg)](https://github.com/alray31/gopool-pump/actions/workflows/hassfest.yml) [![GitHub Release](https://img.shields.io/github/v/release/alray31/gopool-pump?style=flat&color=orange)](https://github.com/alray31/gopool-pump/releases) [![GitHub Release Date](https://img.shields.io/github/release-date/alray31/gopool-pump)](https://github.com/alray31/gopool-pump/releases) [![GitHub Stars](https://img.shields.io/github/stars/alray31/gopool-pump?style=flat)](https://github.com/alray31/gopool-pump/stargazers) [![GitHub Forks](https://img.shields.io/github/forks/alray31/gopool-pump?style=flat)](https://github.com/alray31/gopool-pump/network/members) [![GitHub Issues](https://img.shields.io/github/issues/alray31/gopool-pump)](https://github.com/alray31/gopool-pump/issues) [![Last Commit](https://img.shields.io/github/last-commit/alray31/gopool-pump)](https://github.com/alray31/gopool-pump/commits) [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/github/license/alray31/gopool-pump)](LICENSE)
+
 <img width="1398" height="678" alt="banner" src="https://github.com/user-attachments/assets/8ffd675d-dcd9-47bd-bc88-2c683837a494" />
 
 🇫🇷 [Français](#français) · 🇬🇧 [English](#english)
@@ -16,11 +18,11 @@ variable **GoPool / GoPiscine AG1, IG1 ou IG2** dans Home Assistant —
 
 Ces pompes utilisent la puce Wi-Fi Tuya. Jusqu'ici, les contrôler dans Home
 Assistant demandait de passer par localTuya et de récupérer soi-même le
-`device_id` et la `local_key` via un compte développeur Tuya IoT — une étape
-technique et fastidieuse pour un nouvel utilisateur. Cette intégration
+`device_id` la `local_key` et les nombreux `Data Point ID` via un compte développeur Tuya IoT — des étapes
+techniques et fastidieuses pour un nouvel utilisateur. Cette intégration
 automatise cette récupération grâce à une simple connexion (par QR code)
 à votre compte Smart Life / Tuya Smart, puis fonctionne ensuite
-entièrement en local, comme localTuya.
+entièrement en local.
 
 ### Prérequis
 
@@ -188,11 +190,10 @@ local once configured.
 
 These pumps use a Tuya Wi-Fi chip. Until now, controlling them in Home
 Assistant meant going through localTuya and retrieving the `device_id`
-and `local_key` yourself via a Tuya IoT developer account — a technical
-and tedious step for a new user. This integration automates that
+, `local_key` and a large amount of `Data Point ID` yourself via a Tuya IoT developer account — technical
+and tedious steps for a new user. This integration automates that
 retrieval through a simple (QR-code) connection to your Smart Life /
-Tuya Smart account, then runs entirely locally afterward, just like
-localTuya.
+Tuya Smart account, then runs entirely locally afterward.
 
 ### Prerequisites
 
