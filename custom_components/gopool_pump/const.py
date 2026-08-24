@@ -92,7 +92,7 @@ DP_MAP: dict[str, dict] = {
         "key": "current_speed",
         "name": "Pump Speed",
         "unit": "rpm",
-        "min": 1150,
+        "min": 1000,
         "max": 3450,
         "step": 50,
         "icon": "mdi:speedometer",
@@ -213,6 +213,7 @@ STAGE_START_TIME_DPS: dict[int, dict[str, str]] = {
 # --------------------------------------------------------------------------
 RPM_POWER_TABLES: dict[str, list[tuple[int, int]] | None] = {
     "AG1": [
+        (1000, 37),
         (1150, 50),
         (1500, 83),
         (2000, 160),
