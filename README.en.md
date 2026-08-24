@@ -1,4 +1,6 @@
-🇫🇷 [Version française](README.md)
+[Version française](README.md)
+
+<img width="1398" height="678" alt="banner" src="https://github.com/user-attachments/assets/8ffd675d-dcd9-47bd-bc88-2c683837a494" />
 
 # GoPool Variable Speed Pump
 
