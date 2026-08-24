@@ -77,10 +77,12 @@ animées) directement dans l'interface — inutile de les répéter ici.
 
 | Type | Entité |
 |---|---|
-| `switch` (contrôle) | Power, Quick Clean, No Load Protection |
+| `switch` (contrôle) | Power, Quick Clean |
+| `switch` (configuration) | No Load Protection |
 | `number` (contrôle) | Pump Speed |
 | `number` (configuration) | Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |
-| `time` (configuration) | Stage 1-4 Start Time (heure + minute combinées en un seul sélecteur) |
+| `select` (configuration) | Stage 1-4 Start Time (heure + minute combinées en un seul sélecteur, valeurs limitées aux paliers de 10 minutes acceptés par la pompe) |
+| `sensor` | Power Draw (W), Energy (kWh) — calculés à partir du RPM commandé et du modèle de pompe choisi à la configuration (voir [Contribuer](#contribuer) pour IG1/IG2) |
 
 Seuls les DP (data points) confirmés fonctionnels localement sur ces
 pompes sont exposés — les DP inertes (fault, schedule, motor_operation_state,
@@ -96,8 +98,14 @@ etc.) sont volontairement exclus.
   pour son propre login QR, en réutilisant l'identifiant client public de
   Home Assistant (`HA_3y9q4ak7g4ephrvke`) — pas un secret propre à ce
   projet, ni besoin de créer un compte développeur Tuya IoT.
-- Un polling local toutes les 5 secondes maintient l'état à jour, avec
-  reconnexion automatique en cas d'échec ponctuel.
+- Un polling local toutes les 3 secondes maintient l'état à jour, avec
+  reconnexion automatique en cas d'échec ponctuel — même en cas d'échec
+  ponctuel, les entités gardent leur dernière valeur connue au lieu de
+  devenir indisponibles.
+- Les capteurs **Power Draw** (W) et **Energy** (kWh) sont calculés
+  directement par l'intégration (interpolation d'une courbe RPM→W, puis
+  intégration trapézoïdale dans le temps) — aucun template ou aide HA
+  n'est nécessaire.
 
 ### Limitations connues
 
@@ -106,6 +114,9 @@ etc.) sont volontairement exclus.
   mais Tuya pourrait un jour limiter cet usage tiers sans préavis.
 - Testé sur GoPool AG1 ; les DP des IG1/IG2 sont supposément identiques
   mais pas encore confirmés sur le terrain.
+- Les capteurs Power Draw / Energy affichent **indisponible** pour IG1 et
+  IG2 : la courbe de calibration RPM→W n'existe pour l'instant que pour la
+  AG1 (voir [Contribuer](#contribuer) ci-dessous).
 
 ### Problèmes de connexion locale
 
@@ -121,9 +132,29 @@ Si la pompe est injoignable après configuration :
 
 ### Contribuer
 
-Les retours, rapports de bogue et suggestions sont les bienvenus via les
-[issues GitHub](https://github.com/alray31/gopool-pump/issues) de ce
-dépôt.
+**Vous possédez une pompe IG1 ou IG2 ?** Les capteurs **Power Draw** (W)
+et **Energy** (kWh) reposent sur une courbe de calibration RPM → Watts
+mesurée directement sur une pompe réelle. Pour l'instant, seule la courbe
+de la **AG1** est disponible ; ces deux capteurs affichent donc
+« indisponible » sur IG1 et IG2. Si votre pompe affiche la puissance
+directement sur son écran (comme la AG1), votre contribution serait très
+appréciée : notez la valeur affichée (en watts) à au minimum ces deux
+paliers,
+
+- **1150 RPM** (minimum)
+- **3450 RPM** (maximum)
+
+et idéalement aux mêmes RPM intermédiaires déjà mesurés pour la AG1
+(1500, 2000, 2450 et 2850 RPM), pour une interpolation aussi précise que
+celle de la AG1. Ouvrez une [issue GitHub](https://github.com/alray31/gopool-pump/issues)
+avec le modèle exact de votre pompe et vos mesures (RPM → watts), et
+j'ajouterai la courbe de calibration correspondante — aucune
+réinstallation ne sera nécessaire de votre côté, juste une mise à jour
+via HACS.
+
+Les retours, rapports de bogue et suggestions sont aussi les bienvenus
+via les mêmes [issues GitHub](https://github.com/alray31/gopool-pump/issues)
+de ce dépôt.
 
 ### Marque de commerce
 
@@ -210,10 +241,12 @@ captures) built right into the interface — no need to repeat them here.
 
 | Type | Entity |
 |---|---|
-| `switch` (control) | Power, Quick Clean, No Load Protection |
+| `switch` (control) | Power, Quick Clean |
+| `switch` (configuration) | No Load Protection |
 | `number` (control) | Pump Speed |
 | `number` (configuration) | Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |
-| `time` (configuration) | Stage 1-4 Start Time (hour + minute combined into a single picker) |
+| `select` (configuration) | Stage 1-4 Start Time (hour + minute combined into a single picker, restricted to the 10-minute steps the pump accepts) |
+| `sensor` | Power Draw (W), Energy (kWh) — calculated from the commanded RPM and the pump model chosen during setup (see [Contributing](#contributing) for IG1/IG2) |
 
 Only data points (DPs) confirmed to work locally on these pumps are
 exposed — dead DPs (fault, schedule, motor_operation_state, etc.) are
@@ -229,8 +262,12 @@ intentionally excluded.
   for its own QR login, reusing Home Assistant's public client ID
   (`HA_3y9q4ak7g4ephrvke`) — not a secret belonging to this project, and
   no need to create a Tuya IoT developer account.
-- Local polling every 5 seconds keeps state up to date, with automatic
-  reconnection on a one-off failure.
+- Local polling every 3 seconds keeps state up to date, with automatic
+  reconnection on a one-off failure — even on a failed poll, entities keep
+  their last known value instead of going unavailable.
+- The **Power Draw** (W) and **Energy** (kWh) sensors are computed
+  directly by the integration (interpolating an RPM→W curve, then
+  trapezoidal integration over time) — no HA template or helper needed.
 
 ### Known limitations
 
@@ -239,6 +276,9 @@ intentionally excluded.
   could restrict this third-party usage at some point without notice.
 - Tested on the GoPool AG1; IG1/IG2 DPs are presumed identical but not
   yet confirmed in the field.
+- The Power Draw / Energy sensors show as **unavailable** on IG1 and
+  IG2: an RPM→W calibration curve currently exists only for the AG1 (see
+  [Contributing](#contributing) below).
 
 ### Local connection issues
 
@@ -254,8 +294,27 @@ If the pump is unreachable after setup:
 
 ### Contributing
 
-Feedback, bug reports, and suggestions are welcome via this repository's
-[GitHub issues](https://github.com/alray31/gopool-pump/issues).
+**Do you own an IG1 or IG2 pump?** The **Power Draw** (W) and **Energy**
+(kWh) sensors rely on an RPM → Watts calibration curve measured directly
+on a real pump. Right now, only the **AG1** curve is available, so these
+two sensors show as "unavailable" on IG1 and IG2. If your pump displays
+its power draw directly on its screen (like the AG1 does), your
+contribution would be very welcome: note down the displayed value (in
+watts) at least at these two points,
+
+- **1150 RPM** (minimum)
+- **3450 RPM** (maximum)
+
+and ideally at the same intermediate RPM steps already measured for the
+AG1 (1500, 2000, 2450, and 2850 RPM), for interpolation as accurate as
+the AG1's. Open a [GitHub issue](https://github.com/alray31/gopool-pump/issues)
+with your pump's exact model and your measurements (RPM → watts), and
+I'll add the matching calibration curve — no reinstall needed on your
+end, just a HACS update.
+
+Feedback, bug reports, and suggestions are also welcome via the same
+[GitHub issues](https://github.com/alray31/gopool-pump/issues) for this
+repository.
 
 ### Trademark notice
 
