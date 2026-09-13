@@ -16,12 +16,15 @@ import tinytuya
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
+    CONF_PUMP_MODEL,
+    DEFAULT_PUMP_MODEL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
@@ -29,6 +32,36 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["switch", "number", "select", "sensor"]
+
+
+def device_info(entry: ConfigEntry) -> DeviceInfo:
+    """Build the shared DeviceInfo for every entity of this config entry.
+
+    Single source of truth (previously duplicated independently in each
+    platform module — see git history) so a field added here reaches every
+    entity's device page automatically.
+
+    `configuration_url` doubles as a way to surface the pump's LAN IP right
+    on the device page: HA renders it as a clickable "Visit" link, and the
+    link text itself is the IP. `model` surfaces which RPM->W calibration
+    curve (see RPM_POWER_TABLES in const.py) is in effect. The device_id and
+    local_key are NOT put here — DeviceInfo has no free-text field for them,
+    and local_key is a credential that shouldn't become a permanently
+    recorded entity state. device_id has its own diagnostic sensor
+    (sensor.py); local_key is only ever exposed via the standard HA
+    "Download diagnostics" button (diagnostics.py) — see that file's
+    docstring for why it's shown unredacted there.
+    """
+    ip = entry.data.get("ip", "")
+    return DeviceInfo(
+        identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},
+        name=entry.data.get("name", "GoPool Pump"),
+        manufacturer="GoPiscine",
+        model=entry.options.get(
+            CONF_PUMP_MODEL, entry.data.get(CONF_PUMP_MODEL, DEFAULT_PUMP_MODEL)
+        ),
+        configuration_url=f"http://{ip}" if ip else None,
+    )
 
 
 class GoPoolCoordinator(DataUpdateCoordinator[dict]):

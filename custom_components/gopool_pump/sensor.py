@@ -24,15 +24,14 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfEnergy, UnitOfPower
+from homeassistant.const import EntityCategory, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from . import GoPoolCoordinator
+from . import GoPoolCoordinator, device_info
 from .const import (
     CONF_DEVICE_ID,
     CONF_PUMP_MODEL,
@@ -59,14 +58,6 @@ def _interpolate(rpm: float, table: list[tuple[int, int]]) -> float:
     return float(table[-1][1])  # pragma: no cover - unreachable, table covers the range
 
 
-def _device_info(entry: ConfigEntry) -> DeviceInfo:
-    return DeviceInfo(
-        identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},
-        name=entry.data.get("name", "GoPool Pump"),
-        manufacturer="GoPiscine",
-    )
-
-
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
@@ -75,6 +66,8 @@ async def async_setup_entry(
         [
             GoPoolPowerSensor(coordinator, entry),
             GoPoolEnergySensor(coordinator, entry),
+            GoPoolDeviceIdSensor(coordinator, entry),
+            GoPoolIpAddressSensor(coordinator, entry),
         ]
     )
 
@@ -106,7 +99,7 @@ class GoPoolPowerSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
         )
         self._table = RPM_POWER_TABLES.get(self._model)
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_power_draw"
-        self._attr_device_info = _device_info(entry)
+        self._attr_device_info = device_info(entry)
 
     @property
     def available(self) -> bool:
@@ -126,6 +119,55 @@ class GoPoolPowerSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
                 "reason": "no calibrated RPM→W curve yet for this model",
             }
         return {"pump_model": self._model}
+
+
+class GoPoolDeviceIdSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
+    """Static, always-visible Tuya device_id — no need to open diagnostics.
+
+    Deliberately does NOT include local_key here: unlike the device_id (an
+    identifier, not a secret), the local_key is a credential and entity
+    states are written to the recorder/logbook/history and can sync to a
+    companion app — a bad place for a credential to sit indefinitely. It's
+    only ever exposed via the "Download diagnostics" button (diagnostics.py)
+    instead, same as the IP address (also surfaced separately as the device
+    page's "Visit" link via configuration_url, see device_info() above).
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Device ID"
+    _attr_icon = "mdi:identifier"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: GoPoolCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator)
+        self._value = entry.data[CONF_DEVICE_ID]
+        self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_device_id"
+        self._attr_device_info = device_info(entry)
+
+    @property
+    def native_value(self) -> str:
+        return self._value
+
+
+class GoPoolIpAddressSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
+    """Static, always-visible LAN IP — a plain sensor in addition to the
+    clickable configuration_url link on the device page (see device_info()),
+    since the link only shows "Visit" rather than the address itself."""
+
+    _attr_has_entity_name = True
+    _attr_name = "IP Address"
+    _attr_icon = "mdi:ip-network"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: GoPoolCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator)
+        self._value = entry.data.get("ip", "")
+        self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_ip_address"
+        self._attr_device_info = device_info(entry)
+
+    @property
+    def native_value(self) -> str:
+        return self._value
 
 
 class GoPoolEnergySensor(CoordinatorEntity[GoPoolCoordinator], RestoreEntity, SensorEntity):
@@ -152,7 +194,7 @@ class GoPoolEnergySensor(CoordinatorEntity[GoPoolCoordinator], RestoreEntity, Se
         )
         self._table = RPM_POWER_TABLES.get(self._model)
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_energy"
-        self._attr_device_info = _device_info(entry)
+        self._attr_device_info = device_info(entry)
         self._total_kwh: float = 0.0
         self._last_power_w: float | None = None
         self._last_ts: datetime | None = None
