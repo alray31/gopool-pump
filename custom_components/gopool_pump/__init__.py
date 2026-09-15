@@ -15,7 +15,7 @@ import tinytuya
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -29,6 +29,7 @@ from .const import (
     DOMAIN,
     PUMP_MODEL_DESCRIPTIONS,
 )
+from .logic import is_key_error_result, is_valid_status_result
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -181,27 +182,9 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug("status() raised %s", err)
             return None
 
-    @staticmethod
-    def _is_valid_result(result: dict | None) -> bool:
-        """True only for a genuinely usable status() response.
-
-        tinytuya doesn't only fail by returning a falsy value or omitting
-        "dps" entirely — a busy/contended socket (see the lock above for
-        why that still happens occasionally, e.g. right after the pump's
-        wifi module resets its local session following an external write)
-        can come back as something like {"Error": "...", "Err": "905",
-        "dps": {}}: a dict, with a "dps" key, that's still not usable data.
-        Accepting that as a "successful" poll used to overwrite the
-        coordinator's last known good state with an empty dict, which is
-        what actually caused entities to flash unavailable/blank even
-        after the thread-safety fix — not a failed poll at all, but a
-        *falsely accepted* one.
-        """
-        return bool(result) and bool(result.get("dps")) and not result.get("Error")
-
     async def _async_update_data(self) -> dict:
         result = await self._async_poll_once()
-        if not self._is_valid_result(result):
+        if not is_valid_status_result(result):
             # A single failed read is common right after something else
             # (the physical pump controls, the Smart Life app, or another
             # local client such as localTuya if it's still configured on
@@ -214,7 +197,25 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("close() raised %s", err)
             result = await self._async_poll_once()
-        if not self._is_valid_result(result):
+        if not is_valid_status_result(result):
+            if is_key_error_result(result):
+                # Confirmed on BOTH attempts (not just a one-off busy-socket
+                # blip that happens to look similar) — this isn't something
+                # retrying can ever fix, and letting the "keep last known
+                # state" fallback below mask it would leave the pump stuck
+                # forever with no indication why. See is_key_error_result()
+                # in logic.py for exactly what tinytuya returns here and
+                # why. ConfigEntryAuthFailed is Home Assistant's own signal
+                # for "the stored credentials are no longer valid" — the
+                # coordinator (post-setup) and async_setup_entry (first
+                # refresh) both let it propagate instead of catching it, so
+                # HA automatically starts the reauth flow this integration
+                # implements in config_flow.py (async_step_reauth), which
+                # re-runs the same QR login to fetch the new local_key.
+                raise ConfigEntryAuthFailed(
+                    f"Rejected local_key for the pump at {self.entry.data.get('ip')} — "
+                    "it was likely removed and re-added in the Smart Life app"
+                )
             if self.data is not None:
                 # Optimistic: keep serving the last known state instead of
                 # raising UpdateFailed, which would grey out every entity.
@@ -256,6 +257,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         await coordinator.async_config_entry_first_refresh()
+    except ConfigEntryAuthFailed:
+        # DataUpdateCoordinator.async_config_entry_first_refresh() (called
+        # with raise_on_auth_failed=True internally) re-raises this as-is
+        # rather than wrapping it into ConfigEntryNotReady — verified
+        # against Home Assistant core's own update_coordinator.py. Must
+        # NOT be caught by the blanket `except Exception` below: doing so
+        # would silently convert it into an endless-retry ConfigEntryNotReady
+        # loop instead of the reauth flow Home Assistant starts automatically
+        # when this propagates out of async_setup_entry unmodified.
+        raise
     except Exception as err:  # noqa: BLE001 - surfaced to the user via ConfigEntryNotReady
         raise ConfigEntryNotReady(
             f"Could not reach the pump locally at {entry.data['ip']}: {err}"

@@ -42,21 +42,9 @@ from .const import (
     DP_PUMP_SPEED,
     RPM_POWER_TABLES,
 )
+from .logic import interpolate_rpm_to_watts
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _interpolate(rpm: float, table: list[tuple[int, int]]) -> float:
-    """Piecewise-linear interpolation over an ascending (rpm, watts) table."""
-    if rpm <= table[0][0]:
-        return float(table[0][1])
-    if rpm >= table[-1][0]:
-        return float(table[-1][1])
-    for (r1, w1), (r2, w2) in zip(table, table[1:]):
-        if r1 <= rpm <= r2:
-            ratio = (rpm - r1) / (r2 - r1)
-            return w1 + ratio * (w2 - w1)
-    return float(table[-1][1])  # pragma: no cover - unreachable, table covers the range
 
 
 async def async_setup_entry(
@@ -80,7 +68,7 @@ def _current_power_w(coordinator: GoPoolCoordinator, table: list[tuple[int, int]
     rpm = coordinator.data.get(DP_PUMP_SPEED)
     if rpm is None:
         return 0.0
-    return _interpolate(float(rpm), table)
+    return interpolate_rpm_to_watts(float(rpm), table)
 
 
 class GoPoolPowerSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
