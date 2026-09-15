@@ -21,6 +21,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     CONF_DEVICE_ID,
+    CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
     CONF_PUMP_MODEL,
     DEFAULT_PUMP_MODEL,
