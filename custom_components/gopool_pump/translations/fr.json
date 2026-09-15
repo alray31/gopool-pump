@@ -45,5 +45,14 @@
         }
       }
     }
+  },
+  "selector": {
+    "pump_model": {
+      "options": {
+        "AG1": "AG1 (Piscine hors-terre 1.5 HP)",
+        "IG1": "IG1 (Piscine creusée 1.65 HP)",
+        "IG2": "IG2 (Piscine creusée 2.2 HP)"
+      }
+    }
   }
 }
