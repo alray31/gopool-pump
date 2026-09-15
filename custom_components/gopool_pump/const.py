@@ -25,17 +25,36 @@ CONF_PUMP_MODEL = "pump_model"
 PUMP_MODELS = ["AG1", "IG1", "IG2"]
 DEFAULT_PUMP_MODEL = "AG1"
 
-# What each model code actually is, in plain terms — used on the device info
-# card (see device_info() in __init__.py) next to the bare model code. The
-# config/options flow's own "Pump model" selector shows the same kind of
-# text too, but as a proper HA selector translation (see strings.json /
-# translations/*.json's "selector.pump_model.options") rather than from
-# here — this dict is Python-side only, for the two spots that build plain
-# text directly instead of going through a translated selector.
+# What each model code actually is, in plain terms — used both on the
+# device info card and in the config/options flow's "Pump model" selector
+# (see pump_model_label() in __init__.py, used by both). Plain Python
+# dict, not an HA selector translation: a SelectSelector translation_key
+# requires the OPTION VALUE itself to be a valid translation key
+# ([a-z0-9-_]+, lowercase only), which "AG1"/"IG1"/"IG2" fail — see
+# pump_model_label()'s docstring for the full explanation.
+#
+# Only the languages pump_model_label() actually resolves to are useful
+# here (see its language -> dict-key mapping) — adding a language to one
+# without the other is a silent no-op, so keep them in sync.
 PUMP_MODEL_DESCRIPTIONS: dict[str, dict[str, str]] = {
-    "AG1": {"en": "Above-ground pool, 1.5 HP", "fr": "Piscine hors-terre 1.5 HP"},
-    "IG1": {"en": "In-ground pool, 1.65 HP", "fr": "Piscine creusée 1.65 HP"},
-    "IG2": {"en": "In-ground pool, 2.2 HP", "fr": "Piscine creusée 2.2 HP"},
+    "AG1": {
+        "en": "Above-ground pool, 1.5 HP",
+        "fr": "Piscine hors-terre 1.5 HP",
+        "es": "Piscina sobre el suelo, 1.5 HP",
+        "zh": "地上泳池，1.5 HP",
+    },
+    "IG1": {
+        "en": "In-ground pool, 1.65 HP",
+        "fr": "Piscine creusée 1.65 HP",
+        "es": "Piscina enterrada, 1.65 HP",
+        "zh": "地埋泳池，1.65 HP",
+    },
+    "IG2": {
+        "en": "In-ground pool, 2.2 HP",
+        "fr": "Piscine creusée 2.2 HP",
+        "es": "Piscina enterrada, 2.2 HP",
+        "zh": "地埋泳池，2.2 HP",
+    },
 }
 
 # Fixed, not user-selectable: every GoPool AG1/IG1/IG2 pump confirmed so far

@@ -37,8 +37,9 @@ PLATFORMS = ["switch", "number", "select", "sensor"]
 
 def pump_model_label(hass: HomeAssistant, pump_model: str) -> str:
     """"AG1" -> "AG1 (Above-ground pool, 1.5 HP)" / "... (Piscine hors-terre
-    1.5 HP)", picked from the running HA instance's configured language.
-    Falls back to the bare code for a model with no description yet.
+    1.5 HP)" / "... (Piscina sobre el suelo, 1.5 HP)" / "AG1 (地上泳池，1.5
+    HP)", picked from the running HA instance's configured language. Falls
+    back to the bare code for a model/language with no description yet.
 
     Public (no leading underscore) and imported from config_flow.py too, to
     build the pump-model selector's option labels — see
@@ -51,7 +52,14 @@ def pump_model_label(hass: HomeAssistant, pump_model: str) -> str:
     selector keeps them consistent without fighting that constraint.
     """
     language = (hass.config.language or "").lower()
-    lang_key = "fr" if language.startswith("fr") else "en"
+    if language.startswith("fr"):
+        lang_key = "fr"
+    elif language.startswith("es"):
+        lang_key = "es"
+    elif language.startswith("zh"):
+        lang_key = "zh"
+    else:
+        lang_key = "en"
     description = PUMP_MODEL_DESCRIPTIONS.get(pump_model, {}).get(lang_key)
     return f"{pump_model} ({description})" if description else pump_model
 

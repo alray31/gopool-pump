@@ -17,6 +17,12 @@ import logging
 from typing import Any
 
 import tinytuya
+import tinytuya.scanner  # noqa: F401 - needed so tinytuya.scanner.devices() (below) resolves;
+# `import tinytuya` alone does NOT attach the scanner submodule as an
+# attribute. Used directly rather than the tinytuya.deviceScan() wrapper
+# because that wrapper never forwards `wantids`/`byID` through to
+# scanner.devices() (checked against both the manifest's tinytuya>=1.13.0
+# floor and the latest release — true in both) — see _scan_for_lan_ips().
 import voluptuous as vol
 
 from homeassistant.config_entries import (
@@ -103,6 +109,48 @@ def _pump_model_selector(hass: HomeAssistant) -> selector.SelectSelector:
     )
 
 
+def _scan_for_lan_ips(device_ids: list[str]) -> dict[str, str]:
+    """Best-effort passive UDP scan for each device's LAN IP, keyed by
+    device_id — lets the "pick your pump" form pre-fill the IP field
+    instead of making everyone look it up manually (router's DHCP client
+    list, or the Smart Life app's device info page).
+
+    Tuya devices broadcast their presence periodically over UDP (ports
+    6666/6667/7000, handled entirely by tinytuya). Passing `wantids` makes
+    tinytuya return as soon as every requested device has been heard from,
+    rather than waiting out the full scan window — in practice this is
+    usually a couple of seconds, not the ~18s a plain `python3 -m tinytuya
+    scan` takes with nothing to look for. `forcescan=False` keeps this to
+    passive listening only — no active IP-range sweep, no elevated
+    permissions needed, matching what the user already gets for free by
+    running `python3 -m tinytuya scan` inside the same container.
+    `poll=False`: we only want the IP here, not a dps read (which would
+    need the local_key wired in for no benefit at this stage).
+
+    Never lets an exception escape, and "found nothing" is a normal,
+    silent outcome — this is a convenience, not a requirement. It comes up
+    empty when HA can't see LAN broadcast traffic at all (most commonly: a
+    Docker container on bridge networking instead of host/macvlan) — the
+    "ip" field stays a plain editable text input either way, exactly as it
+    was before this existed.
+    """
+    try:
+        # tinytuya.scanner.devices(), NOT the tinytuya.deviceScan()
+        # wrapper — see the import comment at the top of this file for why.
+        found = tinytuya.scanner.devices(
+            verbose=False,
+            scantime=8,
+            poll=False,
+            forcescan=False,
+            byID=True,
+            wantids=device_ids,
+        )
+    except Exception:  # noqa: BLE001
+        _LOGGER.debug("Local UDP scan for %r failed", device_ids, exc_info=True)
+        return {}
+    return {dev_id: info["ip"] for dev_id, info in found.items() if info.get("ip")}
+
+
 class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for GoPool Variable Speed Pump."""
 
@@ -120,6 +168,9 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         self.__terminal_id: str = ""
         self.__endpoint: str = ""
         self.__devices: dict[str, Any] = {}
+        # dev_id -> LAN IP, from a local UDP scan (see _scan_for_lan_ips())
+        # — populated once, right after __devices, best-effort.
+        self.__discovered_ips: dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Entry point — ask for the Smart Life / Tuya Smart "user code"
@@ -277,6 +328,14 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
             if not self.__devices:
                 return self.async_abort(reason="no_devices_found")
 
+            # Best-effort: try to find each device's real LAN IP via a
+            # local UDP scan before showing the form, so "ip" below can be
+            # pre-filled with something more trustworthy than the cloud's
+            # often-public-facing address — see _scan_for_lan_ips().
+            self.__discovered_ips = await self.hass.async_add_executor_job(
+                _scan_for_lan_ips, list(self.__devices)
+            )
+
         if user_input is not None:
             dev_id = user_input["device"]
             device = self.__devices[dev_id]
@@ -305,10 +364,24 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         device_choices = {
             dev_id: f"{info['name']} ({dev_id})" for dev_id, info in self.__devices.items()
         }
-        # Pre-fill the IP field with the cloud-reported value only when it
-        # looks like a private LAN address — never with a public IP.
-        first_ip = next(iter(self.__devices.values()), {}).get("ip", "")
-        default_ip = first_ip if _looks_private(first_ip) else ""
+        # Pre-fill "ip" — same single-device assumption as device_choices'
+        # implicit default (HA picks the first entry when "device" has no
+        # explicit default set): whichever value ends up shown only really
+        # matches the actual selection for the common one-pump case, same
+        # as before this scan existed.
+        #
+        # Preferred: the LAN IP a local UDP scan actually found for this
+        # device_id (see _scan_for_lan_ips() — call already made above).
+        # Fallback: the cloud-reported IP, but ONLY when it looks like a
+        # private LAN address — Tuya's device-sharing API frequently
+        # reports a public/WAN address instead, never trusted as-is.
+        first_dev_id = next(iter(self.__devices), None)
+        discovered_ip = self.__discovered_ips.get(first_dev_id, "") if first_dev_id else ""
+        if discovered_ip:
+            default_ip = discovered_ip
+        else:
+            first_ip = next(iter(self.__devices.values()), {}).get("ip", "")
+            default_ip = first_ip if _looks_private(first_ip) else ""
 
         return self.async_show_form(
             step_id="pick_device",
