@@ -16,19 +16,76 @@ import tinytuya
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
+    CONF_PUMP_MODEL,
+    DEFAULT_PUMP_MODEL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    PUMP_MODEL_DESCRIPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["switch", "number", "select", "sensor"]
+
+
+def pump_model_label(hass: HomeAssistant, pump_model: str) -> str:
+    """"AG1" -> "AG1 (Above-ground pool, 1.5 HP)" / "... (Piscine hors-terre
+    1.5 HP)", picked from the running HA instance's configured language.
+    Falls back to the bare code for a model with no description yet.
+
+    Public (no leading underscore) and imported from config_flow.py too, to
+    build the pump-model selector's option labels — see
+    _pump_model_selector() there for why those are plain literal labels
+    rather than going through HA's translation-key system: a SelectSelector
+    translation_key requires every OPTION VALUE to itself be a valid
+    translation key ([a-z0-9-_]+, lowercase only), and PUMP_MODELS' real
+    values ("AG1", "IG1", "IG2") fail that — hassfest rejects it. Building
+    the same label text here in Python for both the device card and the
+    selector keeps them consistent without fighting that constraint.
+    """
+    language = (hass.config.language or "").lower()
+    lang_key = "fr" if language.startswith("fr") else "en"
+    description = PUMP_MODEL_DESCRIPTIONS.get(pump_model, {}).get(lang_key)
+    return f"{pump_model} ({description})" if description else pump_model
+
+
+def device_info(hass: HomeAssistant, entry: ConfigEntry) -> DeviceInfo:
+    """Build the shared DeviceInfo for every entity of this config entry.
+
+    Single source of truth (previously duplicated independently in each
+    platform module — see git history) so a field added here reaches every
+    entity's device page automatically.
+
+    `configuration_url` surfaces the pump's LAN IP as a clickable "Visit"
+    link (the link text itself is the IP). `model` shows which pump model
+    is in effect (used to pick the RPM->W calibration curve for the Power
+    Draw / Energy sensors — see RPM_POWER_TABLES in const.py) together with
+    a plain-language description, e.g. "AG1 (Above-ground pool, 1.5 HP)".
+
+    device_id and local_key are NOT here — they're their own diagnostic
+    sensor entities instead (sensor.py), disabled by default so they don't
+    show up (or start writing to the recorder) unless the user opts in.
+    local_key is additionally reachable via "Download diagnostics"
+    (diagnostics.py) without needing to enable anything.
+    """
+    ip = entry.data.get("ip", "")
+    pump_model = entry.options.get(
+        CONF_PUMP_MODEL, entry.data.get(CONF_PUMP_MODEL, DEFAULT_PUMP_MODEL)
+    )
+    return DeviceInfo(
+        identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},
+        name=entry.data.get("name", "GoPool Pump"),
+        manufacturer="GoPiscine",
+        model=pump_model_label(hass, pump_model),
+        configuration_url=f"http://{ip}" if ip else None,
+    )
 
 
 class GoPoolCoordinator(DataUpdateCoordinator[dict]):

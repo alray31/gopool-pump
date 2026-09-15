@@ -25,6 +25,19 @@ CONF_PUMP_MODEL = "pump_model"
 PUMP_MODELS = ["AG1", "IG1", "IG2"]
 DEFAULT_PUMP_MODEL = "AG1"
 
+# What each model code actually is, in plain terms — used on the device info
+# card (see device_info() in __init__.py) next to the bare model code. The
+# config/options flow's own "Pump model" selector shows the same kind of
+# text too, but as a proper HA selector translation (see strings.json /
+# translations/*.json's "selector.pump_model.options") rather than from
+# here — this dict is Python-side only, for the two spots that build plain
+# text directly instead of going through a translated selector.
+PUMP_MODEL_DESCRIPTIONS: dict[str, dict[str, str]] = {
+    "AG1": {"en": "Above-ground pool, 1.5 HP", "fr": "Piscine hors-terre 1.5 HP"},
+    "IG1": {"en": "In-ground pool, 1.65 HP", "fr": "Piscine creusée 1.65 HP"},
+    "IG2": {"en": "In-ground pool, 2.2 HP", "fr": "Piscine creusée 2.2 HP"},
+}
+
 # Fixed, not user-selectable: every GoPool AG1/IG1/IG2 pump confirmed so far
 # uses local protocol 3.5. Still stored per config entry (not hardcoded at
 # the call sites) so a future pump generation needing a different version

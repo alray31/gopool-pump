@@ -5,10 +5,10 @@ from __future__ import annotations
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import GoPoolCoordinator
+from . import GoPoolCoordinator, device_info
 from .const import CONF_DEVICE_ID, DOMAIN, DP_MAP
 
 
@@ -45,11 +45,7 @@ class GoPoolNumber(CoordinatorEntity[GoPoolCoordinator], NumberEntity):
             EntityCategory.CONFIG if spec.get("category") == "config" else None
         )
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_{spec['key']}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},
-            name=entry.data.get("name", "GoPool Pump"),
-            manufacturer="GoPiscine",
-        )
+        self._attr_device_info = device_info(coordinator.hass, entry)
 
     @property
     def native_value(self) -> float | None:

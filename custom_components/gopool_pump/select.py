@@ -14,11 +14,11 @@ from __future__ import annotations
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import GoPoolCoordinator
+from . import GoPoolCoordinator, device_info
 from .const import CONF_DEVICE_ID, DOMAIN, STAGE_START_TIME_DPS
 
 _MINUTE_STEPS = (0, 10, 20, 30, 40, 50)
@@ -57,11 +57,7 @@ class GoPoolStageStartTime(CoordinatorEntity[GoPoolCoordinator], SelectEntity):
         self._attr_name = f"Stage {stage} Start Time"
         self._attr_icon = "mdi:clock-start"
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_stage_{stage}_start_time_select"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},
-            name=entry.data.get("name", "GoPool Pump"),
-            manufacturer="GoPiscine",
-        )
+        self._attr_device_info = device_info(coordinator.hass, entry)
 
     @property
     def current_option(self) -> str | None:
