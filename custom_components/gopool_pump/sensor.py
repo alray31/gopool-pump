@@ -122,15 +122,19 @@ class GoPoolPowerSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
 
 
 class GoPoolDeviceIdSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
-    """Static, always-visible Tuya device_id — no need to open diagnostics.
+    """Static, always-visible Tuya device_id, as its own entity.
 
-    Deliberately does NOT include local_key here: unlike the device_id (an
-    identifier, not a secret), the local_key is a credential and entity
-    states are written to the recorder/logbook/history and can sync to a
-    companion app — a bad place for a credential to sit indefinitely. It's
-    only ever exposed via the "Download diagnostics" button (diagnostics.py)
-    instead, same as the IP address (also surfaced separately as the device
-    page's "Visit" link via configuration_url, see device_info() above).
+    device_id is also shown directly on the device info card itself (see
+    device_info() in __init__.py) — this entity exists in addition, for
+    anyone who'd rather reference it as sensor.xxx_device_id (e.g. in a
+    template or an automation) than read it off the card.
+
+    Deliberately does NOT include local_key: it's a credential, and an
+    entity state is written to the recorder/logbook/history and can sync to
+    a companion app — a bad place for a credential to sit indefinitely. It
+    IS shown on the device card (a deliberate, discussed trade-off — see
+    device_info()'s docstring) and via "Download diagnostics"
+    (diagnostics.py), neither of which persists it to entity-state history.
     """
 
     _attr_has_entity_name = True

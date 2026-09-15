@@ -5,6 +5,11 @@ Settings -> Devices & services -> [device] -> "Download diagnostics" button,
 plus the coordinator's current raw DP snapshot (handy for debugging a DP
 that isn't in DP_MAP yet, or an entity showing a surprising value).
 
+device_id and local_key are ALSO shown directly on the device info card
+itself now (see device_info() in __init__.py) — this download exists
+alongside that for a portable, greppable, all-in-one snapshot (e.g. to
+attach to a GitHub issue) rather than as the only way to see them.
+
 Unlike most core integrations (e.g. HA's own Tuya integration), local_key is
 INTENTIONALLY NOT passed through `homeassistant.components.diagnostics.
 async_redact_data` here — this project's user explicitly wants it visible

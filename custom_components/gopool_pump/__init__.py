@@ -41,26 +41,41 @@ def device_info(entry: ConfigEntry) -> DeviceInfo:
     platform module — see git history) so a field added here reaches every
     entity's device page automatically.
 
-    `configuration_url` doubles as a way to surface the pump's LAN IP right
-    on the device page: HA renders it as a clickable "Visit" link, and the
-    link text itself is the IP. `model` surfaces which RPM->W calibration
-    curve (see RPM_POWER_TABLES in const.py) is in effect. The device_id and
-    local_key are NOT put here — DeviceInfo has no free-text field for them,
-    and local_key is a credential that shouldn't become a permanently
-    recorded entity state. device_id has its own diagnostic sensor
-    (sensor.py); local_key is only ever exposed via the standard HA
-    "Download diagnostics" button (diagnostics.py) — see that file's
-    docstring for why it's shown unredacted there.
+    `configuration_url` surfaces the pump's LAN IP as a clickable "Visit"
+    link (the link text itself is the IP). `model` surfaces which RPM->W
+    calibration curve (see RPM_POWER_TABLES in const.py) is in effect.
+
+    device_id and local_key are deliberately placed on THIS card (via the
+    `serial_number` / `hw_version` fields — DeviceInfo has no field actually
+    named for either of them, these are the only two free-text slots left)
+    rather than only behind a click (diagnostics.py) or an entity state
+    (recorder/logbook/companion-app would persist it indefinitely). Every
+    installer of this integration gets their OWN pump's device_id/local_key
+    here — this is per-config-entry data pulled from each user's own linked
+    Tuya/Smart Life account during setup (see config_flow.py), never a
+    value baked into the integration itself.
+
+    No inline warning text: local_key only works over the pump's local LAN
+    protocol (never Tuya cloud/account auth), so someone who merely sees it
+    — a screenshot, this card — can't do anything with it unless they're
+    also already reachable on the same network as the pump, which isn't the
+    kind of thing a loud label here would prevent anyway.
     """
     ip = entry.data.get("ip", "")
+    local_key = entry.data.get(CONF_LOCAL_KEY, "")
+    device_id = entry.data.get(CONF_DEVICE_ID, "")
     return DeviceInfo(
-        identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},
+        identifiers={(DOMAIN, device_id)},
         name=entry.data.get("name", "GoPool Pump"),
         manufacturer="GoPiscine",
         model=entry.options.get(
             CONF_PUMP_MODEL, entry.data.get(CONF_PUMP_MODEL, DEFAULT_PUMP_MODEL)
         ),
         configuration_url=f"http://{ip}" if ip else None,
+        serial_number=f"device_id: {device_id}" if device_id else None,
+        hw_version=(
+            f"local_key: {local_key}" if local_key else None
+        ),
     )
 
 
