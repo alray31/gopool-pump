@@ -34,6 +34,7 @@ from homeassistant.util import dt as dt_util
 from . import GoPoolCoordinator, device_info
 from .const import (
     CONF_DEVICE_ID,
+    CONF_LOCAL_KEY,
     CONF_PUMP_MODEL,
     DEFAULT_PUMP_MODEL,
     DOMAIN,
@@ -67,6 +68,7 @@ async def async_setup_entry(
             GoPoolPowerSensor(coordinator, entry),
             GoPoolEnergySensor(coordinator, entry),
             GoPoolDeviceIdSensor(coordinator, entry),
+            GoPoolLocalKeySensor(coordinator, entry),
             GoPoolIpAddressSensor(coordinator, entry),
         ]
     )
@@ -99,7 +101,7 @@ class GoPoolPowerSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
         )
         self._table = RPM_POWER_TABLES.get(self._model)
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_power_draw"
-        self._attr_device_info = device_info(entry)
+        self._attr_device_info = device_info(coordinator.hass, entry)
 
     @property
     def available(self) -> bool:
@@ -122,31 +124,57 @@ class GoPoolPowerSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
 
 
 class GoPoolDeviceIdSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
-    """Static, always-visible Tuya device_id, as its own entity.
+    """Tuya device_id as its own diagnostic entity.
 
-    device_id is also shown directly on the device info card itself (see
-    device_info() in __init__.py) — this entity exists in addition, for
-    anyone who'd rather reference it as sensor.xxx_device_id (e.g. in a
-    template or an automation) than read it off the card.
-
-    Deliberately does NOT include local_key: it's a credential, and an
-    entity state is written to the recorder/logbook/history and can sync to
-    a companion app — a bad place for a credential to sit indefinitely. It
-    IS shown on the device card (a deliberate, discussed trade-off — see
-    device_info()'s docstring) and via "Download diagnostics"
-    (diagnostics.py), neither of which persists it to entity-state history.
+    Disabled by default (_attr_entity_registry_enabled_default = False): it
+    isn't secret, but it's still identifying/setup-only data most users
+    never need as a live entity, and leaving it off by default means
+    nothing here writes to the recorder unless someone deliberately enables
+    it (Settings -> Devices & services -> entity -> enable). Same reasoning
+    as GoPoolLocalKeySensor below, just a lower-stakes value.
     """
 
     _attr_has_entity_name = True
     _attr_name = "Device ID"
     _attr_icon = "mdi:identifier"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, coordinator: GoPoolCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         self._value = entry.data[CONF_DEVICE_ID]
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_device_id"
-        self._attr_device_info = device_info(entry)
+        self._attr_device_info = device_info(coordinator.hass, entry)
+
+    @property
+    def native_value(self) -> str:
+        return self._value
+
+
+class GoPoolLocalKeySensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
+    """Tuya local_key as its own diagnostic entity — disabled by default.
+
+    local_key is a credential: an entity state is written to the recorder,
+    shows up in the logbook, and can sync to a companion app, none of which
+    is a good place for a credential to sit indefinitely. Disabled by
+    default means it's opt-in (Settings -> Devices & services -> entity ->
+    enable) rather than something every installer gets whether they want it
+    or not. It's also reachable without enabling anything, via "Download
+    diagnostics" (diagnostics.py) — that download isn't persisted anywhere
+    either, it's generated fresh each time.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Local Key"
+    _attr_icon = "mdi:key"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator: GoPoolCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator)
+        self._value = entry.data.get(CONF_LOCAL_KEY, "")
+        self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_local_key"
+        self._attr_device_info = device_info(coordinator.hass, entry)
 
     @property
     def native_value(self) -> str:
@@ -154,9 +182,15 @@ class GoPoolDeviceIdSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
 
 
 class GoPoolIpAddressSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
-    """Static, always-visible LAN IP — a plain sensor in addition to the
-    clickable configuration_url link on the device page (see device_info()),
-    since the link only shows "Visit" rather than the address itself."""
+    """Static LAN IP, as its own diagnostic entity — enabled by default.
+
+    Unlike device_id/local_key, the IP is what you'd actually want handy
+    day-to-day (opening the pump's local web UI, debugging connectivity),
+    it's not a credential, and it's already visible without enabling
+    anything via the device card's "Visit" link (configuration_url, see
+    device_info()) — this is just a more explicit way to read the same
+    value as a plain sensor state.
+    """
 
     _attr_has_entity_name = True
     _attr_name = "IP Address"
@@ -167,7 +201,7 @@ class GoPoolIpAddressSensor(CoordinatorEntity[GoPoolCoordinator], SensorEntity):
         super().__init__(coordinator)
         self._value = entry.data.get("ip", "")
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_ip_address"
-        self._attr_device_info = device_info(entry)
+        self._attr_device_info = device_info(coordinator.hass, entry)
 
     @property
     def native_value(self) -> str:
@@ -198,7 +232,7 @@ class GoPoolEnergySensor(CoordinatorEntity[GoPoolCoordinator], RestoreEntity, Se
         )
         self._table = RPM_POWER_TABLES.get(self._model)
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_energy"
-        self._attr_device_info = device_info(entry)
+        self._attr_device_info = device_info(coordinator.hass, entry)
         self._total_kwh: float = 0.0
         self._last_power_w: float | None = None
         self._last_ts: datetime | None = None

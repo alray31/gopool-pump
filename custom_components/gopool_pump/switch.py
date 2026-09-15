@@ -36,7 +36,7 @@ class GoPoolSwitch(CoordinatorEntity[GoPoolCoordinator], SwitchEntity):
             EntityCategory.CONFIG if spec.get("category") == "config" else None
         )
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_{spec['key']}"
-        self._attr_device_info = device_info(entry)
+        self._attr_device_info = device_info(coordinator.hass, entry)
 
     @property
     def is_on(self) -> bool | None:

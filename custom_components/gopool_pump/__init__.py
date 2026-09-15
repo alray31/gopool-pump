@@ -21,12 +21,12 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     CONF_DEVICE_ID,
-    CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
     CONF_PUMP_MODEL,
     DEFAULT_PUMP_MODEL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    PUMP_MODEL_DESCRIPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,7 +34,18 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["switch", "number", "select", "sensor"]
 
 
-def device_info(entry: ConfigEntry) -> DeviceInfo:
+def _pump_model_label(hass: HomeAssistant, pump_model: str) -> str:
+    """"AG1" -> "AG1 (Above-ground pool, 1.5 HP)" / "... (Piscine hors-terre
+    1.5 HP)", picked from the running HA instance's configured language.
+    Falls back to the bare code for a model with no description yet.
+    """
+    language = (hass.config.language or "").lower()
+    lang_key = "fr" if language.startswith("fr") else "en"
+    description = PUMP_MODEL_DESCRIPTIONS.get(pump_model, {}).get(lang_key)
+    return f"{pump_model} ({description})" if description else pump_model
+
+
+def device_info(hass: HomeAssistant, entry: ConfigEntry) -> DeviceInfo:
     """Build the shared DeviceInfo for every entity of this config entry.
 
     Single source of truth (previously duplicated independently in each
@@ -42,40 +53,27 @@ def device_info(entry: ConfigEntry) -> DeviceInfo:
     entity's device page automatically.
 
     `configuration_url` surfaces the pump's LAN IP as a clickable "Visit"
-    link (the link text itself is the IP). `model` surfaces which RPM->W
-    calibration curve (see RPM_POWER_TABLES in const.py) is in effect.
+    link (the link text itself is the IP). `model` shows which pump model
+    is in effect (used to pick the RPM->W calibration curve for the Power
+    Draw / Energy sensors — see RPM_POWER_TABLES in const.py) together with
+    a plain-language description, e.g. "AG1 (Above-ground pool, 1.5 HP)".
 
-    device_id and local_key are deliberately placed on THIS card (via the
-    `serial_number` / `hw_version` fields — DeviceInfo has no field actually
-    named for either of them, these are the only two free-text slots left)
-    rather than only behind a click (diagnostics.py) or an entity state
-    (recorder/logbook/companion-app would persist it indefinitely). Every
-    installer of this integration gets their OWN pump's device_id/local_key
-    here — this is per-config-entry data pulled from each user's own linked
-    Tuya/Smart Life account during setup (see config_flow.py), never a
-    value baked into the integration itself.
-
-    No inline warning text: local_key only works over the pump's local LAN
-    protocol (never Tuya cloud/account auth), so someone who merely sees it
-    — a screenshot, this card — can't do anything with it unless they're
-    also already reachable on the same network as the pump, which isn't the
-    kind of thing a loud label here would prevent anyway.
+    device_id and local_key are NOT here — they're their own diagnostic
+    sensor entities instead (sensor.py), disabled by default so they don't
+    show up (or start writing to the recorder) unless the user opts in.
+    local_key is additionally reachable via "Download diagnostics"
+    (diagnostics.py) without needing to enable anything.
     """
     ip = entry.data.get("ip", "")
-    local_key = entry.data.get(CONF_LOCAL_KEY, "")
-    device_id = entry.data.get(CONF_DEVICE_ID, "")
+    pump_model = entry.options.get(
+        CONF_PUMP_MODEL, entry.data.get(CONF_PUMP_MODEL, DEFAULT_PUMP_MODEL)
+    )
     return DeviceInfo(
-        identifiers={(DOMAIN, device_id)},
+        identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},
         name=entry.data.get("name", "GoPool Pump"),
         manufacturer="GoPiscine",
-        model=entry.options.get(
-            CONF_PUMP_MODEL, entry.data.get(CONF_PUMP_MODEL, DEFAULT_PUMP_MODEL)
-        ),
+        model=_pump_model_label(hass, pump_model),
         configuration_url=f"http://{ip}" if ip else None,
-        serial_number=f"device_id: {device_id}" if device_id else None,
-        hw_version=(
-            f"local_key: {local_key}" if local_key else None
-        ),
     )
 
 

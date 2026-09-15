@@ -5,10 +5,11 @@ Settings -> Devices & services -> [device] -> "Download diagnostics" button,
 plus the coordinator's current raw DP snapshot (handy for debugging a DP
 that isn't in DP_MAP yet, or an entity showing a surprising value).
 
-device_id and local_key are ALSO shown directly on the device info card
-itself now (see device_info() in __init__.py) — this download exists
-alongside that for a portable, greppable, all-in-one snapshot (e.g. to
-attach to a GitHub issue) rather than as the only way to see them.
+device_id and local_key are otherwise only reachable via their own
+diagnostic sensor entities (sensor.py), disabled by default — this download
+works without enabling anything, and gives a portable, greppable,
+all-in-one snapshot (e.g. to attach to a GitHub issue) rather than reading
+values off separate entities one at a time.
 
 Unlike most core integrations (e.g. HA's own Tuya integration), local_key is
 INTENTIONALLY NOT passed through `homeassistant.components.diagnostics.

@@ -25,6 +25,7 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_DEVICE_ID,
@@ -70,6 +71,22 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str) -> bool:
     except Exception:  # noqa: BLE001
         _LOGGER.exception("Local connection test to %s failed", ip)
         return False
+
+
+def _pump_model_selector() -> selector.SelectSelector:
+    """Radio-button selector for PUMP_MODELS (used both at initial setup and
+    in the options flow), with translated, plain-language option labels
+    (e.g. "AG1 (Above-ground pool, 1.5 HP)") instead of the bare model code
+    — see strings.json / translations/*.json's "selector.pump_model.options".
+    A plain vol.In(PUMP_MODELS) would only ever show the raw codes.
+    """
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=PUMP_MODELS,
+            mode=selector.SelectSelectorMode.LIST,
+            translation_key="pump_model",
+        )
+    )
 
 
 class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -142,8 +159,6 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_scan(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        from homeassistant.helpers import selector
-
         qr_schema = vol.Schema(
             {
                 vol.Optional("QR"): selector.QrCodeSelector(
@@ -287,9 +302,9 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required("device"): vol.In(device_choices),
                     vol.Required("ip", default=default_ip): str,
-                    vol.Required(CONF_PUMP_MODEL, default=DEFAULT_PUMP_MODEL): vol.In(
-                        PUMP_MODELS
-                    ),
+                    vol.Required(
+                        CONF_PUMP_MODEL, default=DEFAULT_PUMP_MODEL
+                    ): _pump_model_selector(),
                 }
             ),
             errors=errors,
@@ -315,7 +330,7 @@ class GoPoolPumpOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Required(CONF_PUMP_MODEL, default=current): vol.In(PUMP_MODELS)}
+                {vol.Required(CONF_PUMP_MODEL, default=current): _pump_model_selector()}
             ),
         )
 

@@ -57,7 +57,7 @@ class GoPoolStageStartTime(CoordinatorEntity[GoPoolCoordinator], SelectEntity):
         self._attr_name = f"Stage {stage} Start Time"
         self._attr_icon = "mdi:clock-start"
         self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_stage_{stage}_start_time_select"
-        self._attr_device_info = device_info(entry)
+        self._attr_device_info = device_info(coordinator.hass, entry)
 
     @property
     def current_option(self) -> str | None:
