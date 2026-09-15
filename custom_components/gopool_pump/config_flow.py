@@ -14,9 +14,9 @@ GitHub integration uses for its device-code login step): a background task
 polls tuya_sharing's login_result() every TUYA_QR_POLL_INTERVAL seconds,
 and the frontend re-invokes async_step_scan on its own until that task
 finishes — see __wait_for_scan() below for the polling/QR-refresh logic,
-and _qr_svg()'s docstring for why the QR is rendered as inline SVG instead
-of the QrCodeSelector form field this step used to have (progress steps
-don't support form fields at all).
+and _qr_code_html()'s docstring for why the QR is rendered via HA's own
+<ha-qr-code> element instead of the QrCodeSelector form field this step
+used to have (progress steps don't support form fields at all).
 
 Protocol version is fixed at 3.5 (this pump line only ships that version;
 see DEFAULT_PROTOCOL_VERSION in const.py) — not exposed as a choice.
@@ -25,13 +25,10 @@ see DEFAULT_PROTOCOL_VERSION in const.py) — not exposed as a choice.
 from __future__ import annotations
 
 import asyncio
-import io
+import html
 import logging
-import re
 from typing import Any
 
-import qrcode
-import qrcode.image.svg
 import tinytuya
 import tinytuya.scanner  # noqa: F401 - needed so tinytuya.scanner.devices() (below) resolves;
 # `import tinytuya` alone does NOT attach the scanner submodule as an
@@ -128,46 +125,43 @@ def _pump_model_selector(hass: HomeAssistant) -> selector.SelectSelector:
     )
 
 
-def _qr_svg(token: str) -> str:
-    """Render the Smart Life / Tuya Smart QR login payload as an inline
-    <svg>...</svg> fragment — deliberately NOT a data: URI <img>.
+def _qr_code_html(token: str) -> str:
+    """Render the Smart Life / Tuya Smart QR login payload as HA's own
+    <ha-qr-code> element, embedded directly in markdown-rendered step
+    description text via a "{qr_code}" placeholder (same mechanism
+    already used for the GIF URLs in this file).
 
-    HA's frontend only allows data: URI images in a config flow step's
-    description for a hardcoded allowlist of core integrations (zwave_js,
-    as of this writing) — for every other domain (including this one) it
-    gets stripped by the markdown sanitizer. Raw SVG markup, on the other
-    hand, is unconditionally allowed (`allow-svg` is always set on the
-    ha-markdown element that renders step descriptions, both for regular
-    form steps and for progress steps) — hence generating the QR as SVG
-    and embedding it directly in the translated description text via a
-    "{qr_svg}" placeholder, the same mechanism already used for the GIF
-    URLs in this file.
+    This started out as a hand-generated inline <svg>, which turned out
+    to render as a tiny, black-background, unreadable mess: HA's markdown
+    sanitizer (custom_components use the "xss" package, not DOMPurify —
+    see src/resources/markdown-worker.ts) whitelists only "xmlns",
+    "height" and "width" on a raw <svg> tag and only "transform",
+    "stroke", "d" on <path> — NOT "viewBox" and NOT "fill", and <rect>
+    isn't whitelisted at all. Without viewBox the QR's module-grid
+    coordinates never get rescaled to the requested width/height (hence
+    "tiny"), and with no <rect> allowed there's no way to paint a light
+    background behind the (default-black, since "fill" is stripped too)
+    modules (hence "black background").
 
-    This also replaces the QrCodeSelector form field the "scan" step used
-    to use: progress steps (async_show_progress, see async_step_scan)
-    don't support form fields/data_schema at all, only description text —
-    so the QR has to be part of that text.
+    <ha-qr-code>, however, is in that sanitizer's BASE allowlist
+    (unconditionally, unlike raw <svg> which needs allow-svg) — it's a
+    real HA frontend component (renders to a <canvas> via the "qrcode" JS
+    package, same project as the "qrcode" PyPI package this used to
+    depend on), so it needs no dependency here anymore and isn't subject
+    to the markdown sanitizer's SVG attribute stripping at all. It also
+    automatically resolves a theme-contrast-safe foreground/background
+    from HA's own CSS variables, so it matches light/dark theme instead
+    of assuming a fixed white background.
+
+    "width" here is the total rendered size in CSS pixels (forces the
+    per-module scale to fit, per the underlying "qrcode" package's
+    toCanvas() option) — NOT a module count, unlike the "width" this
+    project's DP config uses elsewhere for unrelated things.
     """
-    buf = io.BytesIO()
-    qrcode.make(
-        f"tuyaSmart--qrLogin?token={token}",
-        image_factory=qrcode.image.svg.SvgPathFillImage,
-        box_size=10,
-    ).save(buf)
-    svg = buf.getvalue().decode("utf-8")
-    # Strip the leading "<?xml ...?>" prolog: only meaningful for a
-    # standalone .svg *file*, and invalid once this fragment is pasted
-    # into the middle of the markdown-rendered description.
-    if svg.startswith("<?xml"):
-        svg = svg.split("?>", 1)[1].lstrip()
-    # qrcode always sizes the svg in mm (e.g. width="37mm") — pin it to a
-    # fixed pixel box instead so it renders at a consistent, sane size
-    # regardless of the dialog's DPI/zoom. The viewBox (module
-    # coordinates) does the actual scaling; width/height just set the
-    # final rendered box size.
-    svg = re.sub(r'width="[\d.]+mm"', 'width="260"', svg, count=1)
-    svg = re.sub(r'height="[\d.]+mm"', 'height="260"', svg, count=1)
-    return svg
+    return (
+        f'<ha-qr-code data="{html.escape(f"tuyaSmart--qrLogin?token={token}")}" '
+        'error-correction-level="quartile" width="260"></ha-qr-code>'
+    )
 
 
 def _scan_for_lan_ips(device_ids: list[str]) -> dict[str, str]:
@@ -237,7 +231,7 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         # silent QR refresh mid-poll is picked up the next time
         # async_step_scan re-renders the progress screen.
         self.__scan_task: asyncio.Task[None] | None = None
-        self.__qr_svg: str = ""
+        self.__qr_code_html: str = ""
 
     # ------------------------------------------------------------------
     # Entry point — ask for the Smart Life / Tuya Smart "user code"
@@ -288,13 +282,13 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
     # ------------------------------------------------------------------
     # Show the QR code and wait for it to be scanned — auto-advances on
     # its own once confirmed, no Submit click required. See the module
-    # docstring and _qr_svg()/__wait_for_scan() for how/why.
+    # docstring and _qr_code_html()/__wait_for_scan() for how/why.
     # ------------------------------------------------------------------
     async def async_step_scan(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if self.__scan_task is None:
-            self.__qr_svg = _qr_svg(self.__qr_code)
+            self.__qr_code_html = _qr_code_html(self.__qr_code)
             self.__scan_task = self.hass.async_create_task(
                 self.__wait_for_scan(), f"{DOMAIN}_qr_scan"
             )
@@ -302,14 +296,14 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         if not self.__scan_task.done():
             # Same reasoning as async_step_user for the GIF placeholder:
             # hassfest rejects a literal URL in a translation string. The
-            # QR itself is embedded the same way — see _qr_svg().
+            # QR itself is embedded the same way — see _qr_code_html().
             return self.async_show_progress(
                 step_id="scan",
                 progress_action="waiting_for_scan",
                 progress_task=self.__scan_task,
                 description_placeholders={
                     "qr_scan_gif_url": QR_SCAN_GIF_URL,
-                    "qr_svg": self.__qr_svg,
+                    "qr_code": self.__qr_code_html,
                 },
             )
 
@@ -343,8 +337,8 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         Tuya doesn't document a fixed QR-token lifetime, so rather than
         ever surfacing a hard "expired" error to the user, a fresh QR is
         silently requested every TUYA_QR_REFRESH_AFTER seconds of no
-        confirmation — self.__qr_svg is updated in place and picked up on
-        the next progress render automatically.
+        confirmation — self.__qr_code_html is updated in place and picked
+        up on the next progress render automatically.
 
         Returns normally once the login is confirmed. Re-raises after
         TUYA_QR_MAX_CONSECUTIVE_ERRORS consecutive *transport* failures
@@ -388,7 +382,7 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
                 since_refresh = 0
                 success, _resp = await self.__async_get_qr_code(self.__user_code)
                 if success:
-                    self.__qr_svg = _qr_svg(self.__qr_code)
+                    self.__qr_code_html = _qr_code_html(self.__qr_code)
                 # A failed refresh just leaves the previous (possibly
                 # stale) code in place — not fatal, the next successful
                 # refresh replaces it; the user isn't shown anything.

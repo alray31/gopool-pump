@@ -26,7 +26,7 @@
       }
     },
     "progress": {
-      "waiting_for_scan": "Open the Smart Life or Tuya Smart app, then tap the scan icon (usually in the top-right corner of the profile screen). Scan the code below — this step continues automatically once you confirm on your phone, no need to click anything here.\n\n{qr_svg}\n\n![How to scan the QR code]({qr_scan_gif_url})"
+      "waiting_for_scan": "Open the Smart Life or Tuya Smart app, then tap the scan icon (usually in the top-right corner of the profile screen). Scan the code below — this step continues automatically once you confirm on your phone, no need to click anything here.\n\n{qr_code}\n\n![How to scan the QR code]({qr_scan_gif_url})"
     },
     "error": {
       "cannot_connect": "Could not reach the pump locally with these credentials. Check the IP address and that the pump is on the same subnet.",
