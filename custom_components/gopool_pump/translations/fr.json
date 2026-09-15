@@ -9,8 +9,7 @@
         }
       },
       "scan": {
-        "title": "Scannez ce code QR",
-        "description": "Ouvrez l'application Smart Life ou Tuya Smart, puis appuyez sur l'icône de scan (généralement en haut à droite de l'écran profil). Scannez le code ci-dessous, confirmez sur votre téléphone, puis cliquez sur Valider ici.\n\n![Comment scanner le code QR]({qr_scan_gif_url})"
+        "title": "Scannez ce code QR"
       },
       "pick_device": {
         "title": "Choisissez votre pompe",
@@ -26,6 +25,9 @@
         }
       }
     },
+    "progress": {
+      "waiting_for_scan": "Ouvrez l'application Smart Life ou Tuya Smart, puis appuyez sur l'icône de scan (généralement en haut à droite de l'écran profil). Scannez le code ci-dessous — cette étape continue automatiquement une fois confirmé sur votre téléphone, pas besoin de cliquer sur quoi que ce soit ici.\n\n{qr_code}\n\n![Comment scanner le code QR]({qr_scan_gif_url})"
+    },
     "error": {
       "cannot_connect": "Impossible de joindre la pompe localement avec ces identifiants. Vérifiez l'adresse IP et que la pompe est sur le même sous-réseau.",
       "login_error": "Échec de connexion Tuya — vérifiez le code utilisateur, ou le QR a peut-être expiré."
@@ -33,7 +35,8 @@
     "abort": {
       "already_configured": "Cette pompe est déjà configurée.",
       "device_list_failed": "Impossible de lister les appareils de votre compte Tuya après la connexion.",
-      "no_devices_found": "Aucun appareil avec une local key utilisable n'a été trouvé sur ce compte."
+      "no_devices_found": "Aucun appareil avec une local key utilisable n'a été trouvé sur ce compte.",
+      "qr_login_failed": "Impossible de confirmer la connexion QR — les serveurs de Tuya sont peut-être inaccessibles en ce moment. Vérifiez votre connexion internet et relancez la configuration."
     }
   },
   "options": {

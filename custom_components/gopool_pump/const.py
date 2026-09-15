@@ -95,6 +95,22 @@ TUYA_RESPONSE_CODE = "code"
 TUYA_RESPONSE_MSG = "msg"
 
 # --------------------------------------------------------------------------
+# Auto-advancing QR login (config_flow.py's async_step_scan /
+# __wait_for_scan): a background task polls login_result() instead of
+# waiting for a manual Submit click.
+# --------------------------------------------------------------------------
+TUYA_QR_POLL_INTERVAL = 3  # seconds between login_result() checks.
+TUYA_QR_REFRESH_AFTER = 90  # seconds of no confirmation before silently
+# issuing a fresh QR code. Tuya does not document a fixed token lifetime,
+# but community tooling built on the same SDK (vineetchoudhary/
+# tuya-local-key) reports it "expires within a minute or two" empirically —
+# this stays comfortably under that so the user is never shown a hard
+# "QR expired" error, the code just quietly changes underneath them.
+TUYA_QR_MAX_CONSECUTIVE_ERRORS = 5  # consecutive *transport* failures
+# (network/API errors talking to Tuya, NOT a plain "not scanned yet"
+# response) before giving up instead of retrying forever.
+
+# --------------------------------------------------------------------------
 # Config flow step GIFs. HA's translation linter (hassfest) rejects a raw
 # URL embedded directly in a translation string — it must be passed as a
 # description_placeholder instead, with the string itself only holding a

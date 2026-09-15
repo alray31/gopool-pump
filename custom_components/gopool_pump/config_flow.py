@@ -7,12 +7,25 @@ sourcing/caveat notes) to fetch device_id + local_key, then confirm the
 pump's local IP. Nothing here keeps talking to the cloud afterward — once
 the config entry exists, the integration is 100% local.
 
+The "scan" step auto-advances once the QR is scanned and confirmed on the
+phone — no manual Submit click needed. This uses HA's async_show_progress /
+async_show_progress_done mechanism (the same pattern HA's own built-in
+GitHub integration uses for its device-code login step): a background task
+polls tuya_sharing's login_result() every TUYA_QR_POLL_INTERVAL seconds,
+and the frontend re-invokes async_step_scan on its own until that task
+finishes — see __wait_for_scan() below for the polling/QR-refresh logic,
+and _qr_code_html()'s docstring for why the QR is rendered via HA's own
+<ha-qr-code> element instead of the QrCodeSelector form field this step
+used to have (progress steps don't support form fields at all).
+
 Protocol version is fixed at 3.5 (this pump line only ships that version;
 see DEFAULT_PROTOCOL_VERSION in const.py) — not exposed as a choice.
 """
 
 from __future__ import annotations
 
+import asyncio
+import html
 import logging
 from typing import Any
 
@@ -47,6 +60,9 @@ from .const import (
     PUMP_MODELS,
     QR_SCAN_GIF_URL,
     TUYA_CLIENT_ID,
+    TUYA_QR_MAX_CONSECUTIVE_ERRORS,
+    TUYA_QR_POLL_INTERVAL,
+    TUYA_QR_REFRESH_AFTER,
     TUYA_RESPONSE_CODE,
     TUYA_RESPONSE_MSG,
     TUYA_RESPONSE_QR_CODE,
@@ -106,6 +122,45 @@ def _pump_model_selector(hass: HomeAssistant) -> selector.SelectSelector:
             ],
             mode=selector.SelectSelectorMode.LIST,
         )
+    )
+
+
+def _qr_code_html(token: str) -> str:
+    """Render the Smart Life / Tuya Smart QR login payload as HA's own
+    <ha-qr-code> element, embedded directly in markdown-rendered step
+    description text via a "{qr_code}" placeholder (same mechanism
+    already used for the GIF URLs in this file).
+
+    This started out as a hand-generated inline <svg>, which turned out
+    to render as a tiny, black-background, unreadable mess: HA's markdown
+    sanitizer (custom_components use the "xss" package, not DOMPurify —
+    see src/resources/markdown-worker.ts) whitelists only "xmlns",
+    "height" and "width" on a raw <svg> tag and only "transform",
+    "stroke", "d" on <path> — NOT "viewBox" and NOT "fill", and <rect>
+    isn't whitelisted at all. Without viewBox the QR's module-grid
+    coordinates never get rescaled to the requested width/height (hence
+    "tiny"), and with no <rect> allowed there's no way to paint a light
+    background behind the (default-black, since "fill" is stripped too)
+    modules (hence "black background").
+
+    <ha-qr-code>, however, is in that sanitizer's BASE allowlist
+    (unconditionally, unlike raw <svg> which needs allow-svg) — it's a
+    real HA frontend component (renders to a <canvas> via the "qrcode" JS
+    package, same project as the "qrcode" PyPI package this used to
+    depend on), so it needs no dependency here anymore and isn't subject
+    to the markdown sanitizer's SVG attribute stripping at all. It also
+    automatically resolves a theme-contrast-safe foreground/background
+    from HA's own CSS variables, so it matches light/dark theme instead
+    of assuming a fixed white background.
+
+    "width" here is the total rendered size in CSS pixels (forces the
+    per-module scale to fit, per the underlying "qrcode" package's
+    toCanvas() option) — NOT a module count, unlike the "width" this
+    project's DP config uses elsewhere for unrelated things.
+    """
+    return (
+        f'<ha-qr-code data="{html.escape(f"tuyaSmart--qrLogin?token={token}")}" '
+        'error-correction-level="quartile" width="260"></ha-qr-code>'
     )
 
 
@@ -171,6 +226,12 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         # dev_id -> LAN IP, from a local UDP scan (see _scan_for_lan_ips())
         # — populated once, right after __devices, best-effort.
         self.__discovered_ips: dict[str, str] = {}
+        # Background poller for the "scan" step (see __wait_for_scan()) and
+        # the QR it's currently displaying, kept as instance state so a
+        # silent QR refresh mid-poll is picked up the next time
+        # async_step_scan re-renders the progress screen.
+        self.__scan_task: asyncio.Task[None] | None = None
+        self.__qr_code_html: str = ""
 
     # ------------------------------------------------------------------
     # Entry point — ask for the Smart Life / Tuya Smart "user code"
@@ -219,63 +280,112 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         return success, response
 
     # ------------------------------------------------------------------
-    # Show the QR code, wait for it to be scanned.
+    # Show the QR code and wait for it to be scanned — auto-advances on
+    # its own once confirmed, no Submit click required. See the module
+    # docstring and _qr_code_html()/__wait_for_scan() for how/why.
     # ------------------------------------------------------------------
     async def async_step_scan(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        qr_schema = vol.Schema(
-            {
-                vol.Optional("QR"): selector.QrCodeSelector(
-                    config=selector.QrCodeSelectorConfig(
-                        data=f"tuyaSmart--qrLogin?token={self.__qr_code}",
-                        scale=5,
-                        error_correction_level=selector.QrErrorCorrectionLevel.QUARTILE,
-                    )
-                )
-            }
-        )
-
-        # Same reasoning as async_step_user: hassfest rejects a literal URL
-        # in a translation string, so the GIF is referenced there as
-        # "{qr_scan_gif_url}" and supplied here on every render.
-        placeholders: dict[str, str] = {"qr_scan_gif_url": QR_SCAN_GIF_URL}
-
-        if user_input is None:
-            return self.async_show_form(
-                step_id="scan", data_schema=qr_schema, description_placeholders=placeholders
+        if self.__scan_task is None:
+            self.__qr_code_html = _qr_code_html(self.__qr_code)
+            self.__scan_task = self.hass.async_create_task(
+                self.__wait_for_scan(), f"{DOMAIN}_qr_scan"
             )
 
-        ret, info = await self.hass.async_add_executor_job(
-            self.__login_control.login_result,
-            self.__qr_code,
-            TUYA_CLIENT_ID,
-            self.__user_code,
-        )
-        if not ret:
-            # QR token likely expired — request a fresh one and let the
-            # user rescan.
-            await self.__async_get_qr_code(self.__user_code)
-            placeholders[TUYA_RESPONSE_MSG] = str(info.get(TUYA_RESPONSE_MSG, "Unknown error"))
-            placeholders[TUYA_RESPONSE_CODE] = str(info.get(TUYA_RESPONSE_CODE, 0))
-            return self.async_show_form(
+        if not self.__scan_task.done():
+            # Same reasoning as async_step_user for the GIF placeholder:
+            # hassfest rejects a literal URL in a translation string. The
+            # QR itself is embedded the same way — see _qr_code_html().
+            return self.async_show_progress(
                 step_id="scan",
-                errors={"base": "login_error"},
-                data_schema=qr_schema,
-                description_placeholders=placeholders,
+                progress_action="waiting_for_scan",
+                progress_task=self.__scan_task,
+                description_placeholders={
+                    "qr_scan_gif_url": QR_SCAN_GIF_URL,
+                    "qr_code": self.__qr_code_html,
+                },
             )
 
-        self.__token_info = {
-            "t": info["t"],
-            "uid": info["uid"],
-            "expire_time": info["expire_time"],
-            "access_token": info["access_token"],
-            "refresh_token": info["refresh_token"],
-        }
-        self.__terminal_id = info["terminal_id"]
-        self.__endpoint = info["endpoint"]
+        try:
+            self.__scan_task.result()
+        except Exception:  # noqa: BLE001
+            # TUYA_QR_MAX_CONSECUTIVE_ERRORS consecutive transport
+            # failures — a real connectivity/API problem, not a plain
+            # "not scanned yet" response (see __wait_for_scan()).
+            _LOGGER.exception("QR login never completed")
+            return self.async_show_progress_done(next_step_id="scan_failed")
 
-        return await self.async_step_pick_device()
+        return self.async_show_progress_done(next_step_id="pick_device")
+
+    async def async_step_scan_failed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Reached only after repeated transport failures while polling
+        login_result() — see async_step_scan / __wait_for_scan."""
+        return self.async_abort(reason="qr_login_failed")
+
+    async def __wait_for_scan(self) -> None:
+        """Background task backing the "scan" progress step.
+
+        Polls login_result() every TUYA_QR_POLL_INTERVAL seconds instead
+        of waiting for a manual Submit click — HA's frontend re-invokes
+        async_step_scan on its own while this task is running (that's
+        what async_show_progress/progress_task is for) and again once it
+        finishes.
+
+        Tuya doesn't document a fixed QR-token lifetime, so rather than
+        ever surfacing a hard "expired" error to the user, a fresh QR is
+        silently requested every TUYA_QR_REFRESH_AFTER seconds of no
+        confirmation — self.__qr_code_html is updated in place and picked
+        up on the next progress render automatically.
+
+        Returns normally once the login is confirmed. Re-raises after
+        TUYA_QR_MAX_CONSECUTIVE_ERRORS consecutive *transport* failures
+        (a "not scanned yet" response from Tuya is expected/normal and
+        does not count as an error here).
+        """
+        consecutive_errors = 0
+        since_refresh = 0
+        while True:
+            await asyncio.sleep(TUYA_QR_POLL_INTERVAL)
+            since_refresh += TUYA_QR_POLL_INTERVAL
+            try:
+                ret, info = await self.hass.async_add_executor_job(
+                    self.__login_control.login_result,
+                    self.__qr_code,
+                    TUYA_CLIENT_ID,
+                    self.__user_code,
+                )
+            except Exception:  # noqa: BLE001
+                consecutive_errors += 1
+                _LOGGER.debug("QR login status check failed", exc_info=True)
+                if consecutive_errors >= TUYA_QR_MAX_CONSECUTIVE_ERRORS:
+                    raise
+                continue
+
+            consecutive_errors = 0
+
+            if ret:
+                self.__token_info = {
+                    "t": info["t"],
+                    "uid": info["uid"],
+                    "expire_time": info["expire_time"],
+                    "access_token": info["access_token"],
+                    "refresh_token": info["refresh_token"],
+                }
+                self.__terminal_id = info["terminal_id"]
+                self.__endpoint = info["endpoint"]
+                return
+
+            if since_refresh >= TUYA_QR_REFRESH_AFTER:
+                since_refresh = 0
+                success, _resp = await self.__async_get_qr_code(self.__user_code)
+                if success:
+                    self.__qr_code_html = _qr_code_html(self.__qr_code)
+                # A failed refresh just leaves the previous (possibly
+                # stale) code in place — not fatal, the next successful
+                # refresh replaces it; the user isn't shown anything.
 
     # ------------------------------------------------------------------
     # Query the linked account's devices, let the user pick which one is

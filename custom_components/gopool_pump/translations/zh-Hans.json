@@ -9,8 +9,7 @@
         }
       },
       "scan": {
-        "title": "扫描此二维码",
-        "description": "打开 Smart Life 或 Tuya Smart 应用，然后点击扫描图标（通常在个人资料页面右上角）。扫描下方的二维码，在手机上确认，然后在此处点击提交。\n\n![如何扫描二维码]({qr_scan_gif_url})"
+        "title": "扫描此二维码"
       },
       "pick_device": {
         "title": "选择您的水泵",
@@ -26,6 +25,9 @@
         }
       }
     },
+    "progress": {
+      "waiting_for_scan": "打开 Smart Life 或 Tuya Smart 应用，然后点击扫描图标（通常在个人资料页面右上角）。扫描下方的二维码——在手机上确认后，此步骤会自动继续，无需在此处点击任何内容。\n\n{qr_code}\n\n![如何扫描二维码]({qr_scan_gif_url})"
+    },
     "error": {
       "cannot_connect": "无法使用这些凭据在本地连接到水泵。请检查 IP 地址，并确认水泵与本设备处于同一子网。",
       "login_error": "Tuya 登录失败——请检查用户码，或二维码可能已过期。"
@@ -33,7 +35,8 @@
     "abort": {
       "already_configured": "此水泵已配置。",
       "device_list_failed": "登录后无法列出您 Tuya 账户中的设备。",
-      "no_devices_found": "在此账户中未找到具有可用 local key 的设备。"
+      "no_devices_found": "在此账户中未找到具有可用 local key 的设备。",
+      "qr_login_failed": "无法确认二维码登录——Tuya 服务器目前可能无法访问。请检查您的网络连接，然后重新开始设置。"
     }
   },
   "options": {
