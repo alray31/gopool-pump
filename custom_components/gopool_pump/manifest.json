@@ -7,8 +7,9 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/alray31/gopool-pump/issues",
   "requirements": [
+    "qrcode>=7.3.1",
     "tinytuya>=1.13.0",
     "tuya-device-sharing-sdk>=0.2.10"
   ],
-  "version": "0.5.11"
+  "version": "0.6.0"
 }
