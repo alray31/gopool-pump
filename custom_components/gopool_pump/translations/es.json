@@ -9,8 +9,7 @@
         }
       },
       "scan": {
-        "title": "Escanea este código QR",
-        "description": "Abre la aplicación Smart Life o Tuya Smart, luego toca el ícono de escaneo (generalmente en la esquina superior derecha de la pantalla de perfil). Escanea el código a continuación, confirma en tu teléfono y luego presiona Enviar aquí.\n\n![Cómo escanear el código QR]({qr_scan_gif_url})"
+        "title": "Escanea este código QR"
       },
       "pick_device": {
         "title": "Selecciona tu bomba",
@@ -26,6 +25,9 @@
         }
       }
     },
+    "progress": {
+      "waiting_for_scan": "Abre la aplicación Smart Life o Tuya Smart, luego toca el ícono de escaneo (generalmente en la esquina superior derecha de la pantalla de perfil). Escanea el código a continuación — este paso continúa automáticamente en cuanto confirmes en tu teléfono, no es necesario hacer clic en nada aquí.\n\n{qr_svg}\n\n![Cómo escanear el código QR]({qr_scan_gif_url})"
+    },
     "error": {
       "cannot_connect": "No se pudo conectar con la bomba localmente con estas credenciales. Verifica la dirección IP y que la bomba esté en la misma subred.",
       "login_error": "Error al iniciar sesión en Tuya — verifica el código de usuario, o el código QR puede haber expirado."
@@ -33,7 +35,8 @@
     "abort": {
       "already_configured": "Esta bomba ya está configurada.",
       "device_list_failed": "No se pudieron listar los dispositivos de tu cuenta de Tuya después de iniciar sesión.",
-      "no_devices_found": "No se encontró ningún dispositivo con una local key utilizable en esta cuenta."
+      "no_devices_found": "No se encontró ningún dispositivo con una local key utilizable en esta cuenta.",
+      "qr_login_failed": "No se pudo confirmar el inicio de sesión con QR — es posible que los servidores de Tuya no estén disponibles en este momento. Verifica tu conexión a internet e inténtalo de nuevo."
     }
   },
   "options": {

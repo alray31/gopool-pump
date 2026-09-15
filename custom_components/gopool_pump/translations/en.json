@@ -9,8 +9,7 @@
         }
       },
       "scan": {
-        "title": "Scan this QR code",
-        "description": "Open the Smart Life or Tuya Smart app, then tap the scan icon (usually in the top-right corner of the profile screen). Scan the code below, confirm on your phone, then press Submit here.\n\n![How to scan the QR code]({qr_scan_gif_url})"
+        "title": "Scan this QR code"
       },
       "pick_device": {
         "title": "Select your pump",
@@ -26,6 +25,9 @@
         }
       }
     },
+    "progress": {
+      "waiting_for_scan": "Open the Smart Life or Tuya Smart app, then tap the scan icon (usually in the top-right corner of the profile screen). Scan the code below — this step continues automatically once you confirm on your phone, no need to click anything here.\n\n{qr_svg}\n\n![How to scan the QR code]({qr_scan_gif_url})"
+    },
     "error": {
       "cannot_connect": "Could not reach the pump locally with these credentials. Check the IP address and that the pump is on the same subnet.",
       "login_error": "Tuya login failed — check the user code, or the QR code may have expired."
@@ -33,7 +35,8 @@
     "abort": {
       "already_configured": "This pump is already configured.",
       "device_list_failed": "Could not list devices from your Tuya account after login.",
-      "no_devices_found": "No device with a usable local key was found on this account."
+      "no_devices_found": "No device with a usable local key was found on this account.",
+      "qr_login_failed": "Could not confirm the QR login — Tuya's servers may be unreachable right now. Check your internet connection and try setup again."
     }
   },
   "options": {
