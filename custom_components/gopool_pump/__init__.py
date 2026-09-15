@@ -34,10 +34,20 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["switch", "number", "select", "sensor"]
 
 
-def _pump_model_label(hass: HomeAssistant, pump_model: str) -> str:
+def pump_model_label(hass: HomeAssistant, pump_model: str) -> str:
     """"AG1" -> "AG1 (Above-ground pool, 1.5 HP)" / "... (Piscine hors-terre
     1.5 HP)", picked from the running HA instance's configured language.
     Falls back to the bare code for a model with no description yet.
+
+    Public (no leading underscore) and imported from config_flow.py too, to
+    build the pump-model selector's option labels — see
+    _pump_model_selector() there for why those are plain literal labels
+    rather than going through HA's translation-key system: a SelectSelector
+    translation_key requires every OPTION VALUE to itself be a valid
+    translation key ([a-z0-9-_]+, lowercase only), and PUMP_MODELS' real
+    values ("AG1", "IG1", "IG2") fail that — hassfest rejects it. Building
+    the same label text here in Python for both the device card and the
+    selector keeps them consistent without fighting that constraint.
     """
     language = (hass.config.language or "").lower()
     lang_key = "fr" if language.startswith("fr") else "en"
@@ -72,7 +82,7 @@ def device_info(hass: HomeAssistant, entry: ConfigEntry) -> DeviceInfo:
         identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},
         name=entry.data.get("name", "GoPool Pump"),
         manufacturer="GoPiscine",
-        model=_pump_model_label(hass, pump_model),
+        model=pump_model_label(hass, pump_model),
         configuration_url=f"http://{ip}" if ip else None,
     )
 

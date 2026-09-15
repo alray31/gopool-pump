@@ -25,8 +25,10 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import selector
 
+from . import pump_model_label
 from .const import (
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
@@ -73,18 +75,30 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str) -> bool:
         return False
 
 
-def _pump_model_selector() -> selector.SelectSelector:
+def _pump_model_selector(hass: HomeAssistant) -> selector.SelectSelector:
     """Radio-button selector for PUMP_MODELS (used both at initial setup and
-    in the options flow), with translated, plain-language option labels
-    (e.g. "AG1 (Above-ground pool, 1.5 HP)") instead of the bare model code
-    — see strings.json / translations/*.json's "selector.pump_model.options".
-    A plain vol.In(PUMP_MODELS) would only ever show the raw codes.
+    in the options flow), with plain-language option labels (e.g. "AG1
+    (Above-ground pool, 1.5 HP)") instead of the bare model code. A plain
+    vol.In(PUMP_MODELS) would only ever show the raw codes.
+
+    Labels are literal strings built via pump_model_label() (same helper
+    the device info card uses — see __init__.py), NOT a translation_key
+    selector: HA's SelectSelector translation-key mechanism requires every
+    OPTION VALUE to itself be a valid translation key ([a-z0-9-_]+, no
+    uppercase), and PUMP_MODELS' real values ("AG1", "IG1", "IG2") fail
+    that — hassfest rejects a "selector.pump_model.options.AG1" key outright.
+    Literal SelectOptionDict labels sidestep the constraint entirely; the
+    trade-off is that the label text follows the HA server's configured
+    language (hass.config.language) rather than each viewer's own browser
+    language, same as the device card.
     """
     return selector.SelectSelector(
         selector.SelectSelectorConfig(
-            options=PUMP_MODELS,
+            options=[
+                selector.SelectOptionDict(value=model, label=pump_model_label(hass, model))
+                for model in PUMP_MODELS
+            ],
             mode=selector.SelectSelectorMode.LIST,
-            translation_key="pump_model",
         )
     )
 
@@ -304,7 +318,7 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required("ip", default=default_ip): str,
                     vol.Required(
                         CONF_PUMP_MODEL, default=DEFAULT_PUMP_MODEL
-                    ): _pump_model_selector(),
+                    ): _pump_model_selector(self.hass),
                 }
             ),
             errors=errors,
@@ -330,7 +344,7 @@ class GoPoolPumpOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Required(CONF_PUMP_MODEL, default=current): _pump_model_selector()}
+                {vol.Required(CONF_PUMP_MODEL, default=current): _pump_model_selector(self.hass)}
             ),
         )
 

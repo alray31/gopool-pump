@@ -45,14 +45,5 @@
         }
       }
     }
-  },
-  "selector": {
-    "pump_model": {
-      "options": {
-        "AG1": "AG1 (Above-ground pool, 1.5 HP)",
-        "IG1": "IG1 (In-ground pool, 1.65 HP)",
-        "IG2": "IG2 (In-ground pool, 2.2 HP)"
-      }
-    }
   }
 }
