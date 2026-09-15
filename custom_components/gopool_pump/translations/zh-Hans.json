@@ -26,7 +26,7 @@
       }
     },
     "progress": {
-      "waiting_for_scan": "打开 Smart Life 或 Tuya Smart 应用，然后点击扫描图标（通常在个人资料页面右上角）。扫描下方的二维码——在手机上确认后，此步骤会自动继续，无需在此处点击任何内容。\n\n{qr_svg}\n\n![如何扫描二维码]({qr_scan_gif_url})"
+      "waiting_for_scan": "打开 Smart Life 或 Tuya Smart 应用，然后点击扫描图标（通常在个人资料页面右上角）。扫描下方的二维码——在手机上确认后，此步骤会自动继续，无需在此处点击任何内容。\n\n{qr_code}\n\n![如何扫描二维码]({qr_scan_gif_url})"
     },
     "error": {
       "cannot_connect": "无法使用这些凭据在本地连接到水泵。请检查 IP 地址，并确认水泵与本设备处于同一子网。",

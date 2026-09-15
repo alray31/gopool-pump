@@ -26,7 +26,7 @@
       }
     },
     "progress": {
-      "waiting_for_scan": "Abre la aplicación Smart Life o Tuya Smart, luego toca el ícono de escaneo (generalmente en la esquina superior derecha de la pantalla de perfil). Escanea el código a continuación — este paso continúa automáticamente en cuanto confirmes en tu teléfono, no es necesario hacer clic en nada aquí.\n\n{qr_svg}\n\n![Cómo escanear el código QR]({qr_scan_gif_url})"
+      "waiting_for_scan": "Abre la aplicación Smart Life o Tuya Smart, luego toca el ícono de escaneo (generalmente en la esquina superior derecha de la pantalla de perfil). Escanea el código a continuación — este paso continúa automáticamente en cuanto confirmes en tu teléfono, no es necesario hacer clic en nada aquí.\n\n{qr_code}\n\n![Cómo escanear el código QR]({qr_scan_gif_url})"
     },
     "error": {
       "cannot_connect": "No se pudo conectar con la bomba localmente con estas credenciales. Verifica la dirección IP y que la bomba esté en la misma subred.",

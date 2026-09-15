@@ -26,7 +26,7 @@
       }
     },
     "progress": {
-      "waiting_for_scan": "Ouvrez l'application Smart Life ou Tuya Smart, puis appuyez sur l'icône de scan (généralement en haut à droite de l'écran profil). Scannez le code ci-dessous — cette étape continue automatiquement une fois confirmé sur votre téléphone, pas besoin de cliquer sur quoi que ce soit ici.\n\n{qr_svg}\n\n![Comment scanner le code QR]({qr_scan_gif_url})"
+      "waiting_for_scan": "Ouvrez l'application Smart Life ou Tuya Smart, puis appuyez sur l'icône de scan (généralement en haut à droite de l'écran profil). Scannez le code ci-dessous — cette étape continue automatiquement une fois confirmé sur votre téléphone, pas besoin de cliquer sur quoi que ce soit ici.\n\n{qr_code}\n\n![Comment scanner le code QR]({qr_scan_gif_url})"
     },
     "error": {
       "cannot_connect": "Impossible de joindre la pompe localement avec ces identifiants. Vérifiez l'adresse IP et que la pompe est sur le même sous-réseau.",
