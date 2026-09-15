@@ -1,0 +1,49 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vincula tu cuenta de Smart Life / Tuya Smart",
+        "description": "**Cómo funciona:** una vez configurada, esta integración controla tu bomba completamente de forma local, sin pasar por la nube. Sin embargo, la configuración inicial requiere una conexión única a la nube de Smart Life para obtener automáticamente el ID de dispositivo y la local key de tu bomba — no necesitarás buscarlos manualmente.\n\nAntes de continuar, asegúrate de que tu bomba ya haya sido agregada a la aplicación Smart Life, tal como se describe en el manual de instrucciones de tu bomba.\n\nUna vez completada la configuración, la aplicación Smart Life ya no es necesaria, a menos que desees seguir usándola junto con esta integración.\n\n**⚠️ Advertencia:** si eliminas y vuelves a agregar tu bomba en Smart Life, su local key cambiará, y deberás reconfigurar esta integración en consecuencia. Puedes eliminar la aplicación Smart Life de tu teléfono sin problema, pero **nunca elimines la bomba de tu cuenta de Smart Life**.\n\n**Dónde encontrar tu código de usuario:** abre la aplicación Smart Life → Perfil (icono inferior derecho) → icono de engranaje (Configuración) → Cuenta y seguridad → Código de usuario.\n\n![Cómo encontrar tu código de usuario]({user_code_gif_url})",
+        "data": {
+          "user_code": "Código de usuario"
+        }
+      },
+      "scan": {
+        "title": "Escanea este código QR",
+        "description": "Abre la aplicación Smart Life o Tuya Smart, luego toca el ícono de escaneo (generalmente en la esquina superior derecha de la pantalla de perfil). Escanea el código a continuación, confirma en tu teléfono y luego presiona Enviar aquí.\n\n![Cómo escanear el código QR]({qr_scan_gif_url})"
+      },
+      "pick_device": {
+        "title": "Selecciona tu bomba",
+        "description": "Elige el dispositivo desde tu cuenta vinculada e ingresa su dirección IP local.",
+        "data": {
+          "device": "Dispositivo",
+          "ip": "Dirección IP local",
+          "pump_model": "Modelo de bomba"
+        },
+        "data_description": {
+          "pump_model": "Se usa únicamente para calcular los sensores de Consumo / Energía a partir del RPM de la bomba. ¿No estás seguro? Revisa el modelo impreso en tu bomba — podrás cambiarlo más tarde sin reconfigurar la bomba. Nota: Consumo/Energía se muestran como no disponibles para IG1 e IG2 hasta que se agregue una curva RPM→W calibrada para esos modelos."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No se pudo conectar con la bomba localmente con estas credenciales. Verifica la dirección IP y que la bomba esté en la misma subred.",
+      "login_error": "Error al iniciar sesión en Tuya — verifica el código de usuario, o el código QR puede haber expirado."
+    },
+    "abort": {
+      "already_configured": "Esta bomba ya está configurada.",
+      "device_list_failed": "No se pudieron listar los dispositivos de tu cuenta de Tuya después de iniciar sesión.",
+      "no_devices_found": "No se encontró ningún dispositivo con una local key utilizable en esta cuenta."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones de GoPool Pump",
+        "description": "Cambia el modelo de bomba usado para calcular los sensores de Consumo / Energía. Nota: Consumo/Energía se muestran como no disponibles para IG1 e IG2 hasta que se agregue una curva RPM→W calibrada para esos modelos.",
+        "data": {
+          "pump_model": "Modelo de bomba"
+        }
+      }
+    }
+  }
+}

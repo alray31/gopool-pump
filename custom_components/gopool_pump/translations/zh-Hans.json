@@ -1,0 +1,49 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "关联您的 Smart Life / Tuya Smart 账户",
+        "description": "**工作原理：** 配置完成后，本集成将完全在本地控制您的水泵，不经过云端。不过，首次设置需要一次性连接 Smart Life 云端，以自动获取您水泵的设备 ID 和 local key——无需手动查找。\n\n继续之前，请确保您的水泵已按照说明书所述添加到 Smart Life 应用中。\n\n设置完成后，除非您希望继续搭配本集成使用，否则不再需要 Smart Life 应用。\n\n**⚠️ 警告：** 如果您在 Smart Life 中删除并重新添加水泵，其 local key 将会改变，届时您需要相应地重新配置本集成。您可以放心地从手机中删除 Smart Life 应用，但**切勿从您的 Smart Life 账户中移除水泵**。\n\n**在哪里查找您的用户码：** 打开 Smart Life 应用 → 个人资料（右下角图标）→ 齿轮图标（设置）→ 账户与安全 → 用户码。\n\n![如何查找您的用户码]({user_code_gif_url})",
+        "data": {
+          "user_code": "用户码"
+        }
+      },
+      "scan": {
+        "title": "扫描此二维码",
+        "description": "打开 Smart Life 或 Tuya Smart 应用，然后点击扫描图标（通常在个人资料页面右上角）。扫描下方的二维码，在手机上确认，然后在此处点击提交。\n\n![如何扫描二维码]({qr_scan_gif_url})"
+      },
+      "pick_device": {
+        "title": "选择您的水泵",
+        "description": "从您关联的账户中选择设备，并输入其本地 IP 地址。",
+        "data": {
+          "device": "设备",
+          "ip": "本地 IP 地址",
+          "pump_model": "水泵型号"
+        },
+        "data_description": {
+          "pump_model": "仅用于根据水泵的 RPM 计算功率 / 能耗传感器。不确定型号？请查看水泵上印刷的型号——之后可以更改此设置，无需重新配置水泵。注意：在为 IG1 和 IG2 添加校准的 RPM→W 曲线之前，功率/能耗将显示为“不可用”。"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "无法使用这些凭据在本地连接到水泵。请检查 IP 地址，并确认水泵与本设备处于同一子网。",
+      "login_error": "Tuya 登录失败——请检查用户码，或二维码可能已过期。"
+    },
+    "abort": {
+      "already_configured": "此水泵已配置。",
+      "device_list_failed": "登录后无法列出您 Tuya 账户中的设备。",
+      "no_devices_found": "在此账户中未找到具有可用 local key 的设备。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "GoPool Pump 选项",
+        "description": "更改用于计算功率 / 能耗传感器的水泵型号。注意：在为 IG1 和 IG2 添加校准的 RPM→W 曲线之前，功率/能耗将显示为“不可用”。",
+        "data": {
+          "pump_model": "水泵型号"
+        }
+      }
+    }
+  }
+}
