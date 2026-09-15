@@ -1,0 +1,14 @@
+# Test-only dependencies -- never installed at runtime by Home Assistant
+# (this file isn't referenced by manifest.json). Used by
+# .github/workflows/tests.yml and for running the suite locally:
+#
+#   pip install -r requirements_test.txt
+#   pytest tests/ -v
+#
+# tests/test_logic.py alone needs nothing beyond plain pytest + this
+# project's own runtime dependencies (tinytuya) -- see its module
+# docstring. The rest of tests/ additionally needs the Home Assistant
+# custom-integration test harness below.
+pytest
+pytest-asyncio
+pytest-homeassistant-custom-component
