@@ -265,22 +265,30 @@ async def test_maybe_heal_ip_updates_entry_on_new_ip_found(
     None) scans for the pump on every call, per should_attempt_ip_rescan's
     has_ever_succeeded=False branch (see logic.py / test_logic.py for the
     pure decision logic itself). If the scan finds it at a different
-    address, _maybe_heal_ip must persist that via async_update_entry --
-    it never touches self.device directly; the entry's own update
-    listener (registered in async_setup_entry) is what reloads the
-    integration with a fresh coordinator afterward."""
+    address, _maybe_heal_ip must persist that via async_update_entry, and
+    itself schedule the reload as a background task (no shared update
+    listener anymore -- see __init__.py's async_setup_entry docstring on
+    the 2026.12.0 deprecation) rather than touching self.device directly."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coordinator = GoPoolCoordinator(hass, entry)
     assert coordinator.data is None
 
-    with patch(
-        "custom_components.gopool_pump.scan_for_lan_ips",
-        return_value={"dev-a": "192.168.1.77"},
+    with (
+        patch(
+            "custom_components.gopool_pump.scan_for_lan_ips",
+            return_value={"dev-a": "192.168.1.77"},
+        ),
+        patch(
+            "homeassistant.config_entries.ConfigEntries.async_reload",
+            new_callable=AsyncMock,
+        ) as mock_reload,
     ):
         await coordinator._maybe_heal_ip()
+        await hass.async_block_till_done()
 
     assert entry.data["ip"] == "192.168.1.77"
+    mock_reload.assert_awaited_once_with(entry.entry_id)
 
 
 async def test_maybe_heal_ip_leaves_entry_alone_when_scan_finds_nothing(
