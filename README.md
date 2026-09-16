@@ -33,10 +33,13 @@ entièrement en local.
   trouver sur le même sous-réseau que Home Assistant. Par exemple, si
   votre Home Assistant est sur `192.168.1.2`, l'adresse IP de votre pompe
   doit commencer par `192.168.1.x`.
-- Connaître l'adresse IP de votre pompe (par exemple via le menu
-  administrateur de votre routeur Wi-Fi). Il est fortement recommandé de
-  lui assigner une adresse IP statique — si la pompe change d'adresse IP
-  par la suite, il faudra reconfigurer cette intégration.
+- Pas besoin de connaître l'adresse IP à l'avance — l'intégration la
+  détecte automatiquement sur le réseau local lors de la configuration
+  (avec possibilité de la corriger manuellement si la détection échoue).
+  Une IP statique reste une bonne pratique, mais n'est plus indispensable :
+  si l'IP de la pompe change par la suite, l'intégration essaie
+  automatiquement de la retrouver sur le réseau local (voir
+  [Problèmes de connexion locale](#problèmes-de-connexion-locale)).
 - Avoir votre téléphone ou votre tablette avec l'application **Smart
   Life** (ou Tuya Smart) à portée de main pendant la configuration de
   cette intégration.
@@ -139,10 +142,21 @@ Si la pompe est injoignable après configuration :
 - Confirmez que le port 6668 n'est pas bloqué par un pare-feu ou une
   isolation VLAN entre les deux appareils.
 - Si la pompe a été retirée/rajoutée dans Smart Life entretemps, sa
-  `local_key` a changé — inutile de retirer l'intégration : Settings →
-  Appareils et services affichera cette intégration avec un bouton
-  « Reconfigurer », qui relance une connexion QR pour récupérer la
-  nouvelle `local_key` automatiquement.
+  `local_key` a changé — inutile de retirer l'intégration : Home
+  Assistant affichera automatiquement une notification de
+  réauthentification pour cette intégration, qui relance une connexion
+  QR pour récupérer la nouvelle `local_key`.
+- Si c'est plutôt l'adresse IP de la pompe qui a changé (aucune IP
+  statique assignée, ou routeur redémarré), l'intégration essaie de la
+  retrouver **automatiquement** : après plusieurs cycles de sondage
+  échoués consécutifs, elle relance un scan du réseau local, et si la
+  pompe répond à une nouvelle adresse, la configuration est mise à jour
+  toute seule (l'intégration se recharge brièvement, sans action de
+  votre part). En attendant que ce scan aboutisse, ou pour corriger
+  l'adresse tout de suite vous-même, un bouton **Reconfigurer** est
+  aussi disponible : Réglages → Appareils et services → cette
+  intégration → menu (⋮) → **Reconfigurer**, pour entrer la nouvelle IP
+  manuellement.
 
 ### Contribuer
 
@@ -210,10 +224,12 @@ Tuya Smart account, then runs entirely locally afterward.
   the same subnet as Home Assistant. For example, if your Home Assistant
   instance is at `192.168.1.2`, your pump's IP address must start with
   `192.168.1.x`.
-- Know your pump's IP address (for example via your Wi-Fi router's admin
-  page). Assigning it a static IP address is strongly recommended — if
-  the pump's IP address changes later, you'll need to reconfigure this
-  integration.
+- No need to know the IP address ahead of time — the integration
+  auto-detects it on your local network during setup (with a manual
+  fallback field if detection doesn't find it). A static IP is still
+  good practice, but no longer required: if the pump's IP changes
+  later, the integration automatically tries to find it again on your
+  local network (see [Local connection issues](#local-connection-issues)).
 - Have your phone or tablet with the **Smart Life** app (or Tuya Smart)
   within reach while setting up this integration.
 - Home Assistant 2026.3.0 or newer.
@@ -312,10 +328,20 @@ If the pump is unreachable after setup:
 - Confirm port 6668 isn't blocked by a firewall or VLAN isolation
   between the two devices.
 - If the pump was removed and re-added in Smart Life in the meantime,
-  its `local_key` has changed — no need to remove the integration:
-  Settings → Devices & services will show this integration with a
-  "Reconfigure" prompt that fetches the new `local_key` via a fresh QR
-  login automatically.
+  its `local_key` has changed — no need to remove the integration: Home
+  Assistant will automatically show a reauthentication notification for
+  this integration, which relaunches a QR login to fetch the new
+  `local_key`.
+- If instead the pump's IP address changed (no static IP assigned, or
+  the router rebooted), the integration tries to find it
+  **automatically**: after several consecutive failed poll cycles, it
+  reruns a local network scan, and if the pump answers at a new
+  address, the config entry is updated on its own (the integration
+  briefly reloads — no action needed from you). While waiting for that
+  scan to succeed, or to fix the address right away yourself, a
+  **Reconfigure** option is also available: Settings → Devices &
+  services → this integration → (⋮) menu → **Reconfigure**, to enter
+  the new IP manually.
 
 ### Contributing
 
