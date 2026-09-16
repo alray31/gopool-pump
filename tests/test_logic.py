@@ -45,6 +45,7 @@ interpolate_rpm_to_watts = logic.interpolate_rpm_to_watts
 is_key_error_result = logic.is_key_error_result
 is_valid_status_result = logic.is_valid_status_result
 pick_reauth_default_device = logic.pick_reauth_default_device
+should_attempt_ip_rescan = logic.should_attempt_ip_rescan
 
 # ---------------------------------------------------------------------------
 # interpolate_rpm_to_watts
@@ -177,3 +178,82 @@ def test_pick_reauth_default_device_plain_setup_picks_first():
 
 def test_pick_reauth_default_device_empty_devices():
     assert pick_reauth_default_device({}, "dev-a") is None
+
+
+# ---------------------------------------------------------------------------
+# should_attempt_ip_rescan
+# ---------------------------------------------------------------------------
+
+AFTER_FAILURES = 10
+COOLDOWN = 300
+
+
+def test_should_rescan_never_succeeded_always_scans():
+    # A fresh coordinator (or reload) that hasn't managed a single
+    # successful poll yet -- there's no "consecutive failures" run to
+    # threshold against, so this fires on the very first failed attempt.
+    assert should_attempt_ip_rescan(
+        has_ever_succeeded=False,
+        consecutive_offline_failures=0,
+        seconds_since_last_rescan_attempt=None,
+        after_failures=AFTER_FAILURES,
+        cooldown_seconds=COOLDOWN,
+    ) is True
+
+
+def test_should_rescan_never_succeeded_ignores_cooldown():
+    # Even a rescan attempted a second ago doesn't block the next one in
+    # this branch -- HA's own ConfigEntryNotReady setup-retry backoff is
+    # what paces this, not this function.
+    assert should_attempt_ip_rescan(
+        has_ever_succeeded=False,
+        consecutive_offline_failures=0,
+        seconds_since_last_rescan_attempt=1.0,
+        after_failures=AFTER_FAILURES,
+        cooldown_seconds=COOLDOWN,
+    ) is True
+
+
+def test_should_rescan_previously_working_below_failure_threshold():
+    # A brief blip (fewer than after_failures consecutive misses) must not
+    # trigger a scan.
+    assert should_attempt_ip_rescan(
+        has_ever_succeeded=True,
+        consecutive_offline_failures=AFTER_FAILURES - 1,
+        seconds_since_last_rescan_attempt=None,
+        after_failures=AFTER_FAILURES,
+        cooldown_seconds=COOLDOWN,
+    ) is False
+
+
+def test_should_rescan_previously_working_at_threshold_first_attempt():
+    # Hits the threshold with no prior rescan attempt recorded yet -- scans.
+    assert should_attempt_ip_rescan(
+        has_ever_succeeded=True,
+        consecutive_offline_failures=AFTER_FAILURES,
+        seconds_since_last_rescan_attempt=None,
+        after_failures=AFTER_FAILURES,
+        cooldown_seconds=COOLDOWN,
+    ) is True
+
+
+def test_should_rescan_previously_working_within_cooldown_blocked():
+    # Past the failure threshold, but the last rescan attempt was too
+    # recent -- an extended outage must not scan every single cycle.
+    assert should_attempt_ip_rescan(
+        has_ever_succeeded=True,
+        consecutive_offline_failures=AFTER_FAILURES + 5,
+        seconds_since_last_rescan_attempt=COOLDOWN - 1,
+        after_failures=AFTER_FAILURES,
+        cooldown_seconds=COOLDOWN,
+    ) is False
+
+
+def test_should_rescan_previously_working_after_cooldown_elapsed():
+    assert should_attempt_ip_rescan(
+        has_ever_succeeded=True,
+        consecutive_offline_failures=AFTER_FAILURES + 5,
+        seconds_since_last_rescan_attempt=COOLDOWN + 1,
+        after_failures=AFTER_FAILURES,
+        cooldown_seconds=COOLDOWN,
+    ) is True
