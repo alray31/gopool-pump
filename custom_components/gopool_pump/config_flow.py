@@ -32,6 +32,14 @@ async_step_pick_device pre-selects the already-configured device_id
 when the account still reports it, and updates the existing config
 entry in place instead of creating a new one — see the
 `self.source == SOURCE_REAUTH` branches there.
+
+Reconfigure (async_step_reconfigure): the user-triggered counterpart for
+when it's the pump's LAN IP that changed instead of its local_key — no
+cloud login needed, just a new address to test against the credentials
+already stored. See that method's own docstring for why this one isn't
+auto-triggered the way reauth is, and GoPoolCoordinator's _maybe_heal_ip
+(__init__.py) for the background self-healing attempt that runs before
+a user would ever need this.
 """
 
 from __future__ import annotations
@@ -42,12 +50,6 @@ import logging
 from typing import Any
 
 import tinytuya
-import tinytuya.scanner  # noqa: F401 - needed so tinytuya.scanner.devices() (below) resolves;
-# `import tinytuya` alone does NOT attach the scanner submodule as an
-# attribute. Used directly rather than the tinytuya.deviceScan() wrapper
-# because that wrapper never forwards `wantids`/`byID` through to
-# scanner.devices() (checked against both the manifest's tinytuya>=1.13.0
-# floor and the latest release — true in both) — see _scan_for_lan_ips().
 import voluptuous as vol
 
 from homeassistant.config_entries import (
@@ -84,6 +86,7 @@ from .const import (
     TUYA_SCHEMA,
     USER_CODE_GIF_URL,
 )
+from .discovery import scan_for_lan_ips
 from .logic import pick_reauth_default_device
 
 _LOGGER = logging.getLogger(__name__)
@@ -178,48 +181,6 @@ def _qr_code_html(token: str) -> str:
     )
 
 
-def _scan_for_lan_ips(device_ids: list[str]) -> dict[str, str]:
-    """Best-effort passive UDP scan for each device's LAN IP, keyed by
-    device_id — lets the "pick your pump" form pre-fill the IP field
-    instead of making everyone look it up manually (router's DHCP client
-    list, or the Smart Life app's device info page).
-
-    Tuya devices broadcast their presence periodically over UDP (ports
-    6666/6667/7000, handled entirely by tinytuya). Passing `wantids` makes
-    tinytuya return as soon as every requested device has been heard from,
-    rather than waiting out the full scan window — in practice this is
-    usually a couple of seconds, not the ~18s a plain `python3 -m tinytuya
-    scan` takes with nothing to look for. `forcescan=False` keeps this to
-    passive listening only — no active IP-range sweep, no elevated
-    permissions needed, matching what the user already gets for free by
-    running `python3 -m tinytuya scan` inside the same container.
-    `poll=False`: we only want the IP here, not a dps read (which would
-    need the local_key wired in for no benefit at this stage).
-
-    Never lets an exception escape, and "found nothing" is a normal,
-    silent outcome — this is a convenience, not a requirement. It comes up
-    empty when HA can't see LAN broadcast traffic at all (most commonly: a
-    Docker container on bridge networking instead of host/macvlan) — the
-    "ip" field stays a plain editable text input either way, exactly as it
-    was before this existed.
-    """
-    try:
-        # tinytuya.scanner.devices(), NOT the tinytuya.deviceScan()
-        # wrapper — see the import comment at the top of this file for why.
-        found = tinytuya.scanner.devices(
-            verbose=False,
-            scantime=8,
-            poll=False,
-            forcescan=False,
-            byID=True,
-            wantids=device_ids,
-        )
-    except Exception:  # noqa: BLE001
-        _LOGGER.debug("Local UDP scan for %r failed", device_ids, exc_info=True)
-        return {}
-    return {dev_id: info["ip"] for dev_id, info in found.items() if info.get("ip")}
-
-
 class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for GoPool Variable Speed Pump."""
 
@@ -237,7 +198,7 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         self.__terminal_id: str = ""
         self.__endpoint: str = ""
         self.__devices: dict[str, Any] = {}
-        # dev_id -> LAN IP, from a local UDP scan (see _scan_for_lan_ips())
+        # dev_id -> LAN IP, from a local UDP scan (see scan_for_lan_ips() in discovery.py)
         # — populated once, right after __devices, best-effort.
         self.__discovered_ips: dict[str, str] = {}
         # Background poller for the "scan" step (see __wait_for_scan()) and
@@ -480,9 +441,9 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
             # Best-effort: try to find each device's real LAN IP via a
             # local UDP scan before showing the form, so "ip" below can be
             # pre-filled with something more trustworthy than the cloud's
-            # often-public-facing address — see _scan_for_lan_ips().
+            # often-public-facing address — see scan_for_lan_ips() in discovery.py.
             self.__discovered_ips = await self.hass.async_add_executor_job(
-                _scan_for_lan_ips, list(self.__devices)
+                scan_for_lan_ips, list(self.__devices)
             )
 
         # Reauth (see async_step_reauth / the module docstring's "Reauth"
@@ -545,7 +506,7 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         #   README precisely so this holds), and re-testing it is exactly
         #   what happens on Submit below regardless.
         # - Preferred fallback either way: the LAN IP a local UDP scan
-        #   actually found for this device_id (see _scan_for_lan_ips() —
+        #   actually found for this device_id (see scan_for_lan_ips() in discovery.py —
         #   call already made above).
         # - Last resort: the cloud-reported IP, but ONLY when it looks
         #   like a private LAN address — Tuya's device-sharing API
@@ -580,6 +541,60 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_PUMP_MODEL, default=default_pump_model
                     ): _pump_model_selector(self.hass),
                 }
+            ),
+            errors=errors,
+        )
+
+    # ------------------------------------------------------------------
+    # Manual "Reconfigure" entry point (Settings -> Devices & services ->
+    # this integration -> "..." -> Reconfigure) for when the pump's LAN IP
+    # changed and it's no longer reachable at the address on the entry.
+    #
+    # Deliberately NOT the same user -> scan -> pick_device journey as
+    # async_step_reauth: the local_key hasn't changed here, only the IP,
+    # so there's nothing to re-fetch from the Smart Life cloud — this is
+    # a single short step that re-tests the EXISTING credentials against
+    # a new address, pre-filled via the same passive LAN scan setup uses
+    # (see discovery.py) when it can find the pump.
+    #
+    # Home Assistant does not trigger this one automatically the way it
+    # does async_step_reauth for ConfigEntryAuthFailed — a plain
+    # connectivity failure isn't necessarily permanent, so there's no
+    # built-in "start a reconfigure flow" signal to hook into. Between
+    # this and GoPoolCoordinator's own background self-healing attempt
+    # (see _maybe_heal_ip in __init__.py, which tries the same scan
+    # automatically after sustained failures), this manual step is the
+    # fallback for when that best-effort scan can't see the pump either
+    # (e.g. HA can't observe LAN broadcast traffic at all — see
+    # discovery.py's docstring) and the user has to type the IP in
+    # themselves.
+    # ------------------------------------------------------------------
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        discovered_ip = ""
+        if user_input is None:
+            found = await self.hass.async_add_executor_job(
+                scan_for_lan_ips, [entry.data[CONF_DEVICE_ID]]
+            )
+            discovered_ip = found.get(entry.data[CONF_DEVICE_ID], "")
+
+        if user_input is not None:
+            ip = user_input["ip"]
+            ok = await self.hass.async_add_executor_job(
+                _test_connection_sync, ip, entry.data[CONF_DEVICE_ID], entry.data[CONF_LOCAL_KEY]
+            )
+            if ok:
+                return self.async_update_reload_and_abort(entry, data_updates={"ip": ip})
+            errors["base"] = "cannot_connect"
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {vol.Required("ip", default=discovered_ip or entry.data.get("ip", "")): str}
             ),
             errors=errors,
         )

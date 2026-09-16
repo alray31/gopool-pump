@@ -111,6 +111,25 @@ TUYA_QR_MAX_CONSECUTIVE_ERRORS = 5  # consecutive *transport* failures
 # response) before giving up instead of retrying forever.
 
 # --------------------------------------------------------------------------
+# Background IP self-healing (GoPoolCoordinator._maybe_heal_ip,
+# __init__.py): when the pump's LAN IP changes (no static IP assigned —
+# see the README), local polling starts failing with a plain connectivity
+# error, not the local_key rejection that triggers reauth. Rather than
+# staying stuck until the user manually fixes it (via the "Reconfigure"
+# flow, async_step_reconfigure in config_flow.py), the coordinator tries
+# the same passive LAN scan setup uses (discovery.py) on its own first —
+# see should_attempt_ip_rescan() in logic.py for exactly when.
+# --------------------------------------------------------------------------
+TUYA_IP_RESCAN_AFTER_FAILURES = 10  # consecutive failed POLL CYCLES (each
+# cycle already retries once internally, see _async_update_data) before
+# attempting a rescan — at the default 3s poll interval that's ~30s of
+# being unreachable, comfortably past a one-off wifi blip.
+TUYA_IP_RESCAN_COOLDOWN = 300  # seconds between rescan attempts once
+# should_attempt_ip_rescan() starts returning True for a given entry — an
+# extended outage (pump powered off, real network down) must not
+# re-trigger a scan on every single poll cycle forever.
+
+# --------------------------------------------------------------------------
 # Config flow step GIFs. HA's translation linter (hassfest) rejects a raw
 # URL embedded directly in a translation string — it must be passed as a
 # description_placeholder instead, with the string itself only holding a

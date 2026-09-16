@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 import threading
+import time
 
 import tinytuya
 
@@ -28,8 +29,11 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     PUMP_MODEL_DESCRIPTIONS,
+    TUYA_IP_RESCAN_AFTER_FAILURES,
+    TUYA_IP_RESCAN_COOLDOWN,
 )
-from .logic import is_key_error_result, is_valid_status_result
+from .discovery import scan_for_lan_ips
+from .logic import is_key_error_result, is_valid_status_result, should_attempt_ip_rescan
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -146,6 +150,13 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         # (merged, never replaced) so a partial response only ever adds to
         # what's already known instead of blanking it.
         self._dps_cache: dict[str, object] = {}
+        # See _maybe_heal_ip() below and should_attempt_ip_rescan() in
+        # logic.py: tracks consecutive offline poll cycles (reset on any
+        # successful poll) and when a rescan was last attempted, so
+        # background IP self-healing can be paced instead of hammering the
+        # LAN with a UDP scan every single failed cycle.
+        self._consecutive_offline_failures: int = 0
+        self._last_ip_rescan_attempt: float | None = None
 
     def _sync_status(self) -> dict | None:
         with self._device_lock:
@@ -182,6 +193,69 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug("status() raised %s", err)
             return None
 
+    async def _maybe_heal_ip(self) -> None:
+        """Best-effort: look for the pump at a new LAN IP after it stopped
+        answering at the one stored in the config entry, and if found,
+        update the entry so this integration keeps working without the
+        user having to notice and use the manual Reconfigure flow
+        (config_flow.py's async_step_reconfigure).
+
+        Deliberately does NOT touch self.device / self.device.address, and
+        does NOT retry the poll itself within this same cycle. It only
+        detects a new IP and persists it via
+        hass.config_entries.async_update_entry() — that alone is enough:
+        async_setup_entry() already registers
+        entry.add_update_listener(_async_update_listener), which reacts to
+        ANY change to entry.data (this includes it) by reloading the
+        entry, tearing down this coordinator and building a fresh one from
+        the corrected data. Mutating self.device mid-flight instead would
+        race against that reload for no benefit.
+
+        Never raises — this always runs from within the offline-failure
+        branch of _async_update_data, which already has its own fallback
+        behavior (keep last known state / raise UpdateFailed) to fall
+        through to regardless of whether healing found anything.
+        """
+        if not should_attempt_ip_rescan(
+            has_ever_succeeded=self.data is not None,
+            consecutive_offline_failures=self._consecutive_offline_failures,
+            seconds_since_last_rescan_attempt=(
+                None
+                if self._last_ip_rescan_attempt is None
+                else time.monotonic() - self._last_ip_rescan_attempt
+            ),
+            after_failures=TUYA_IP_RESCAN_AFTER_FAILURES,
+            cooldown_seconds=TUYA_IP_RESCAN_COOLDOWN,
+        ):
+            return
+        # Only stamped once this entry has succeeded at least once — see
+        # should_attempt_ip_rescan()'s has_ever_succeeded=False branch:
+        # a never-yet-successful entry gets a brand new coordinator (and so
+        # a fresh _last_ip_rescan_attempt) on every setup retry already,
+        # so there's no "every cycle forever" risk there to cool down.
+        if self.data is not None:
+            self._last_ip_rescan_attempt = time.monotonic()
+        device_id = self.entry.data[CONF_DEVICE_ID]
+        try:
+            found = await self.hass.async_add_executor_job(scan_for_lan_ips, [device_id])
+        except Exception:  # noqa: BLE001 - best-effort, never let this break polling
+            _LOGGER.debug("IP rescan for %s failed", device_id, exc_info=True)
+            return
+        new_ip = found.get(device_id)
+        current_ip = self.entry.data.get("ip")
+        if not new_ip or new_ip == current_ip:
+            return
+        _LOGGER.warning(
+            "Pump %s unreachable at %s -- found it at %s via a local network "
+            "scan, updating the config entry automatically",
+            device_id,
+            current_ip,
+            new_ip,
+        )
+        self.hass.config_entries.async_update_entry(
+            self.entry, data={**self.entry.data, "ip": new_ip}
+        )
+
     async def _async_update_data(self) -> dict:
         result = await self._async_poll_once()
         if not is_valid_status_result(result):
@@ -212,10 +286,29 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
                 # HA automatically starts the reauth flow this integration
                 # implements in config_flow.py (async_step_reauth), which
                 # re-runs the same QR login to fetch the new local_key.
+                # translation_domain/translation_key/translation_placeholders
+                # (not just a plain message) so Home Assistant's frontend can
+                # show this in the user's own language instead of always in
+                # English — see exceptions.rejected_local_key in
+                # strings.json / translations/*.json for the localized text.
+                # The plain-English positional message stays as a fallback
+                # for logs and any older frontend that doesn't resolve it.
                 raise ConfigEntryAuthFailed(
                     f"Rejected local_key for the pump at {self.entry.data.get('ip')} — "
-                    "it was likely removed and re-added in the Smart Life app"
+                    "it was likely removed and re-added in the Smart Life app",
+                    translation_domain=DOMAIN,
+                    translation_key="rejected_local_key",
+                    translation_placeholders={
+                        "ip": str(self.entry.data.get("ip"))
+                    },
                 )
+            # Plain connectivity failure (offline/timeout/wrong IP), not a
+            # rejected key. Count it and give the background self-healer a
+            # chance to find the pump at a new IP — see _maybe_heal_ip()
+            # and should_attempt_ip_rescan() in logic.py for the pacing
+            # policy (never on a single blip; throttled afterwards).
+            self._consecutive_offline_failures += 1
+            await self._maybe_heal_ip()
             if self.data is not None:
                 # Optimistic: keep serving the last known state instead of
                 # raising UpdateFailed, which would grey out every entity.
@@ -233,6 +326,7 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         # DP(s) that just changed must not erase every other DP we already
         # know — see the comment on self._dps_cache above.
         self._dps_cache.update(result["dps"])
+        self._consecutive_offline_failures = 0
         return dict(self._dps_cache)
 
     async def async_write_dp(self, dp_id: str, value) -> None:

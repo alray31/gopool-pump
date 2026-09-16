@@ -120,3 +120,47 @@ def pick_reauth_default_device(
     if reauth_device_id is not None and reauth_device_id in devices:
         return reauth_device_id
     return next(iter(devices), None)
+
+
+def should_attempt_ip_rescan(
+    *,
+    has_ever_succeeded: bool,
+    consecutive_offline_failures: int,
+    seconds_since_last_rescan_attempt: float | None,
+    after_failures: int,
+    cooldown_seconds: float,
+) -> bool:
+    """Whether GoPoolCoordinator._maybe_heal_ip (__init__.py) should run a
+    LAN rescan right now, looking for the pump at a new IP after its
+    stored one stopped responding.
+
+    Two different policies, because the two situations behave
+    differently:
+
+    - has_ever_succeeded=False: this entry has never completed a
+      successful poll yet (a fresh setup mid-retry, or a reload/restart
+      where connectivity is already broken from the very first attempt).
+      There's no run of consecutive cycles to threshold against here —
+      each failed setup attempt gets a brand new GoPoolCoordinator (and
+      so a fresh consecutive_offline_failures back at 0) — so this scans
+      on every failed attempt instead. That's intentionally more eager
+      than the steady-state policy below; Home Assistant's own
+      ConfigEntryNotReady retry backoff (spacing out setup attempts
+      itself) is what keeps this from hammering anything.
+    - has_ever_succeeded=True: this entry WAS working. Scan only after
+      `after_failures` consecutive failed poll cycles — a brief network
+      blip must not trigger one — and no more than once per
+      `cooldown_seconds` after that, so an extended outage (pump powered
+      off, real network down) doesn't re-scan on every single cycle
+      forever.
+    """
+    if not has_ever_succeeded:
+        return True
+    if consecutive_offline_failures < after_failures:
+        return False
+    if (
+        seconds_since_last_rescan_attempt is not None
+        and seconds_since_last_rescan_attempt < cooldown_seconds
+    ):
+        return False
+    return True
