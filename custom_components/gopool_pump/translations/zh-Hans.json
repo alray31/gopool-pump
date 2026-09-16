@@ -23,6 +23,16 @@
           "ip": "在可能的情况下会通过本地网络扫描自动检测——否则，请在路由器的 DHCP 客户端列表中查找，或在 Smart Life 应用的设备信息中查找。",
           "pump_model": "仅用于根据水泵的 RPM 计算功率 / 能耗传感器。不确定型号？请查看水泵上印刷的型号——之后可以更改此设置，无需重新配置水泵。注意：在为 IG1 和 IG2 添加校准的 RPM→W 曲线之前，功率/能耗将显示为“不可用”。"
         }
+      },
+      "reconfigure": {
+        "title": "更新水泵的 IP 地址",
+        "description": "本集成无法再通过已保存的 IP 地址连接到您的水泵。请在下方输入新的地址——无需重新登录 Smart Life，此处仅更改本地 IP。",
+        "data": {
+          "ip": "本地 IP 地址"
+        },
+        "data_description": {
+          "ip": "在可能的情况下会通过本地网络扫描自动检测——否则，请在路由器的 DHCP 客户端列表中查找，或在 Smart Life 应用的设备信息中查找。"
+        }
       }
     },
     "progress": {
@@ -36,7 +46,9 @@
       "already_configured": "此水泵已配置。",
       "device_list_failed": "登录后无法列出您 Tuya 账户中的设备。",
       "no_devices_found": "在此账户中未找到具有可用 local key 的设备。",
-      "qr_login_failed": "无法确认二维码登录——Tuya 服务器目前可能无法访问。请检查您的网络连接，然后重新开始设置。"
+      "qr_login_failed": "无法确认二维码登录——Tuya 服务器目前可能无法访问。请检查您的网络连接，然后重新开始设置。",
+      "reauth_successful": "重新验证成功。",
+      "reconfigure_successful": "重新配置成功。"
     }
   },
   "options": {
@@ -48,6 +60,11 @@
           "pump_model": "水泵型号"
         }
       }
+    }
+  },
+  "exceptions": {
+    "rejected_local_key": {
+      "message": "位于 {ip} 的水泵拒绝了其已保存的 local key——它可能在 Smart Life 应用中被删除并重新添加。请重新配置本集成以获取新密钥。"
     }
   }
 }

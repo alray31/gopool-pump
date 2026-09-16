@@ -23,6 +23,16 @@
           "ip": "Auto-detected via a local network scan when possible — otherwise, find it in your router's DHCP client list, or in the Smart Life app under your pump's device info.",
           "pump_model": "Used only to calculate the Power Draw / Energy sensors from the pump's RPM. Not sure? Check the model printed on your pump — you can change this later without reconfiguring the pump. Note: Power/Energy show as unavailable for IG1 and IG2 until a calibrated RPM→W curve is added for those models."
         }
+      },
+      "reconfigure": {
+        "title": "Update the pump's IP address",
+        "description": "This integration can no longer reach your pump at its stored IP address. Enter its new one below — no need to log in to Smart Life again, only the local IP is changing here.",
+        "data": {
+          "ip": "Local IP address"
+        },
+        "data_description": {
+          "ip": "Auto-detected via a local network scan when possible — otherwise, find it in your router's DHCP client list, or in the Smart Life app under your pump's device info."
+        }
       }
     },
     "progress": {
@@ -36,7 +46,9 @@
       "already_configured": "This pump is already configured.",
       "device_list_failed": "Could not list devices from your Tuya account after login.",
       "no_devices_found": "No device with a usable local key was found on this account.",
-      "qr_login_failed": "Could not confirm the QR login — Tuya's servers may be unreachable right now. Check your internet connection and try setup again."
+      "qr_login_failed": "Could not confirm the QR login — Tuya's servers may be unreachable right now. Check your internet connection and try setup again.",
+      "reauth_successful": "Re-authentication was successful.",
+      "reconfigure_successful": "Reconfiguration was successful."
     }
   },
   "options": {
@@ -48,6 +60,11 @@
           "pump_model": "Pump model"
         }
       }
+    }
+  },
+  "exceptions": {
+    "rejected_local_key": {
+      "message": "The pump at {ip} rejected its stored local key — it was likely removed and re-added in the Smart Life app. Reconfigure this integration to fetch the new key."
     }
   }
 }
