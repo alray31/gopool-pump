@@ -27,7 +27,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from homeassistant.config_entries import SOURCE_REAUTH
+from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
@@ -98,7 +98,18 @@ async def test_coordinator_does_not_confuse_offline_with_key_error(
     }
     coordinator.device.close.return_value = None
 
-    with pytest.raises(Exception) as exc_info:
+    # An offline failure also runs _maybe_heal_ip() (__init__.py), which --
+    # unmocked -- would perform a real 8-second UDP LAN scan via
+    # scan_for_lan_ips (discovery.py). Patched out here for the same
+    # reason the config-flow tests patch it: this test is only about
+    # is_key_error_result's classification, not IP self-healing.
+    with (
+        patch(
+            "custom_components.gopool_pump.scan_for_lan_ips",
+            return_value={},
+        ),
+        pytest.raises(Exception) as exc_info,
+    ):
         await coordinator._async_update_data()
     assert not isinstance(exc_info.value, ConfigEntryAuthFailed)
 
@@ -154,7 +165,7 @@ async def test_pick_device_preselects_matching_device_id_on_reauth(
     setattr(flow, "_GoPoolPumpConfigFlow__discovered_ips", {})
 
     with patch(
-        "custom_components.gopool_pump.config_flow._scan_for_lan_ips",
+        "custom_components.gopool_pump.config_flow.scan_for_lan_ips",
         return_value={},
     ):
         result = await flow.async_step_pick_device()
@@ -187,7 +198,7 @@ async def test_pick_device_updates_existing_entry_on_successful_reauth(
 
     with (
         patch(
-            "custom_components.gopool_pump.config_flow._scan_for_lan_ips",
+            "custom_components.gopool_pump.config_flow.scan_for_lan_ips",
             return_value={},
         ),
         patch(
@@ -206,3 +217,86 @@ async def test_pick_device_updates_existing_entry_on_successful_reauth(
     assert entry.data[CONF_DEVICE_ID] == "dev-a"
     # Still the same entry, not a second one for the same pump.
     assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+async def test_reconfigure_updates_ip_on_successful_connection_test(
+    hass: HomeAssistant,
+) -> None:
+    """The manual counterpart to IP self-healing (see
+    test_maybe_heal_ip_updates_entry_on_new_ip_found below): submitting the
+    Reconfigure form with a new IP that passes the connection test must
+    update the SAME entry's "ip" and reload it -- local_key/device_id are
+    untouched, unlike reauth."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.gopool_pump.config_flow.scan_for_lan_ips",
+            return_value={},
+        ),
+        patch(
+            "custom_components.gopool_pump.config_flow._test_connection_sync",
+            return_value=True,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+        )
+        assert result["type"] == "form"
+        assert result["step_id"] == "reconfigure"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"ip": "192.168.1.99"}
+        )
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data["ip"] == "192.168.1.99"
+    assert entry.data[CONF_LOCAL_KEY] == "old-local-key"
+    assert entry.data[CONF_DEVICE_ID] == "dev-a"
+
+
+async def test_maybe_heal_ip_updates_entry_on_new_ip_found(
+    hass: HomeAssistant,
+) -> None:
+    """A fresh coordinator (never had a successful poll -- self.data is
+    None) scans for the pump on every call, per should_attempt_ip_rescan's
+    has_ever_succeeded=False branch (see logic.py / test_logic.py for the
+    pure decision logic itself). If the scan finds it at a different
+    address, _maybe_heal_ip must persist that via async_update_entry --
+    it never touches self.device directly; the entry's own update
+    listener (registered in async_setup_entry) is what reloads the
+    integration with a fresh coordinator afterward."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = GoPoolCoordinator(hass, entry)
+    assert coordinator.data is None
+
+    with patch(
+        "custom_components.gopool_pump.scan_for_lan_ips",
+        return_value={"dev-a": "192.168.1.77"},
+    ):
+        await coordinator._maybe_heal_ip()
+
+    assert entry.data["ip"] == "192.168.1.77"
+
+
+async def test_maybe_heal_ip_leaves_entry_alone_when_scan_finds_nothing(
+    hass: HomeAssistant,
+) -> None:
+    """A scan that comes back empty (pump still unreachable) must not
+    touch the entry -- nothing to reload to, and repeatedly reloading on
+    every failed scan would just thrash the integration."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = GoPoolCoordinator(hass, entry)
+
+    with patch(
+        "custom_components.gopool_pump.scan_for_lan_ips",
+        return_value={},
+    ):
+        await coordinator._maybe_heal_ip()
+
+    assert entry.data["ip"] == ENTRY_DATA["ip"]
