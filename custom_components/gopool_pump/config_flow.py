@@ -58,6 +58,7 @@ from homeassistant.config_entries import (
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
+    OptionsFlowWithReload,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import selector
@@ -600,11 +601,20 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-class GoPoolPumpOptionsFlow(OptionsFlow):
+class GoPoolPumpOptionsFlow(OptionsFlowWithReload):
     """Lets the pump model — used only to pick the RPM->W calibration curve
     for the Power Draw / Energy sensors, see RPM_POWER_TABLES in const.py —
     be changed after initial setup, without deleting and re-adding the
-    integration."""
+    integration.
+
+    OptionsFlowWithReload (not the plain OptionsFlow) automatically
+    reloads the entry after async_create_entry below, which is exactly
+    (and ONLY) what this integration's old entry.add_update_listener +
+    _async_update_listener in __init__.py used to do by hand — that
+    manual pattern is deprecated as of Home Assistant 2026.12.0 in favor
+    of this. See __init__.py's async_setup_entry for the other reload
+    case (IP self-healing) this class doesn't cover, handled separately.
+    """
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

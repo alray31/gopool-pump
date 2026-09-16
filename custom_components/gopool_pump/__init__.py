@@ -201,15 +201,24 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         (config_flow.py's async_step_reconfigure).
 
         Deliberately does NOT touch self.device / self.device.address, and
-        does NOT retry the poll itself within this same cycle. It only
-        detects a new IP and persists it via
-        hass.config_entries.async_update_entry() — that alone is enough:
-        async_setup_entry() already registers
-        entry.add_update_listener(_async_update_listener), which reacts to
-        ANY change to entry.data (this includes it) by reloading the
-        entry, tearing down this coordinator and building a fresh one from
-        the corrected data. Mutating self.device mid-flight instead would
-        race against that reload for no benefit.
+        does NOT retry the poll itself within this same cycle. It persists
+        the new IP via hass.config_entries.async_update_entry(), then
+        explicitly schedules hass.config_entries.async_reload() itself as
+        a background task (hass.async_create_task — fire-and-forget, like
+        Home Assistant's own update-listener dispatch, NOT awaited inline:
+        awaiting a reload of this very entry from inside this coordinator's
+        own _async_update_data call, which is what's calling this method,
+        would mean tearing this coordinator down while it's still mid-poll).
+        Mutating self.device mid-flight instead of going through a reload
+        would race against that for no benefit.
+
+        No update listener is registered for this anymore (there used to
+        be a generic entry.add_update_listener() in async_setup_entry that
+        reloaded on ANY entry.data/options change) — that pattern is
+        deprecated as of Home Assistant 2026.12.0, so each caller that
+        changes the entry (this one included) now triggers its own reload
+        instead of relying on one shared listener. See async_setup_entry's
+        comment for the other two callers and how they each reload.
 
         Never raises — this always runs from within the offline-failure
         branch of _async_update_data, which already has its own fallback
@@ -254,6 +263,10 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         )
         self.hass.config_entries.async_update_entry(
             self.entry, data={**self.entry.data, "ip": new_ip}
+        )
+        self.hass.async_create_task(
+            self.hass.config_entries.async_reload(self.entry.entry_id),
+            name=f"{DOMAIN} IP self-heal reload for {device_id}",
         )
 
     async def _async_update_data(self) -> dict:
@@ -368,15 +381,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # Reload the entry when options change (currently just the pump model,
-    # set via the options flow in config_flow.py) so the Power/Energy
-    # sensors pick up the new RPM->W calibration curve immediately.
-    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    # No entry.add_update_listener() here (there used to be one, calling
+    # hass.config_entries.async_reload() on ANY entry.data/options change):
+    # deprecated as of Home Assistant 2026.12.0 in favor of narrower,
+    # purpose-built reload triggers per caller instead of one catch-all
+    # listener. Each of this integration's 3 callers that changes the
+    # entry now handles its own reload:
+    #   - Options flow (pump model) -> GoPoolPumpOptionsFlow now extends
+    #     OptionsFlowWithReload (config_flow.py), which reloads on its own.
+    #   - Reauth / Reconfigure flows -> async_update_reload_and_abort()
+    #     (config_flow.py) already reloads as part of what it does.
+    #   - Background IP self-healing -> GoPoolCoordinator._maybe_heal_ip()
+    #     below schedules its own reload right after updating the entry.
     return True
-
-
-async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
