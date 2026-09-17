@@ -27,11 +27,14 @@ DEFAULT_PUMP_MODEL = "AG1"
 
 # What each model code actually is, in plain terms — used both on the
 # device info card and in the config/options flow's "Pump model" selector
-# (see pump_model_label() in __init__.py, used by both). Plain Python
-# dict, not an HA selector translation: a SelectSelector translation_key
-# requires the OPTION VALUE itself to be a valid translation key
-# ([a-z0-9-_]+, lowercase only), which "AG1"/"IG1"/"IG2" fail — see
-# pump_model_label()'s docstring for the full explanation.
+# (see pump_model_label() in __init__.py, used by the DeviceInfo card's
+# "model" field). Plain Python dict, not an HA selector translation,
+# because that field is server-rendered with no per-viewer translation
+# mechanism at all in Home Assistant — this always follows
+# hass.config.language (the server's single configured language), no way
+# around it. Config-flow SELECTORS don't have that limitation and now go
+# through HA's own translation_key mechanism instead — see
+# PUMP_MODEL_SLUGS below and _pump_model_selector() in config_flow.py.
 #
 # Only the languages pump_model_label() actually resolves to are useful
 # here (see its language -> dict-key mapping) — adding a language to one
@@ -56,6 +59,19 @@ PUMP_MODEL_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "zh": "地埋泳池，2.2 HP",
     },
 }
+
+# Lowercase stand-ins for PUMP_MODELS' real (uppercase) values, used ONLY
+# by config_flow.py's _pump_model_selector() for its widget options. HA's
+# translation_key selector mechanism (which resolves option labels
+# per-VIEWER, unlike PUMP_MODEL_DESCRIPTIONS above) requires every option
+# VALUE to itself be a valid translation key ([a-z0-9-_]+, no uppercase),
+# and hassfest rejects "AG1"/"IG1"/"IG2" outright. The config entry's
+# actual stored CONF_PUMP_MODEL value is NEVER the slug — config_flow.py
+# converts back via PUMP_MODEL_SLUGS_REVERSE the moment a submitted form
+# is read, so this exists purely as an implementation detail of that one
+# selector, invisible everywhere else (no data migration needed).
+PUMP_MODEL_SLUGS: dict[str, str] = {"AG1": "ag1", "IG1": "ig1", "IG2": "ig2"}
+PUMP_MODEL_SLUGS_REVERSE: dict[str, str] = {slug: model for model, slug in PUMP_MODEL_SLUGS.items()}
 
 # Fixed, not user-selectable: every GoPool AG1/IG1/IG2 pump confirmed so far
 # uses local protocol 3.5. Still stored per config entry (not hardcoded at

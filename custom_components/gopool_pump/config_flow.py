@@ -60,10 +60,8 @@ from homeassistant.config_entries import (
     OptionsFlow,
     OptionsFlowWithReload,
 )
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers import selector
 
-from . import pump_model_label
 from .const import (
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
@@ -73,6 +71,8 @@ from .const import (
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_PUMP_MODEL,
     DOMAIN,
+    PUMP_MODEL_SLUGS,
+    PUMP_MODEL_SLUGS_REVERSE,
     PUMP_MODELS,
     QR_SCAN_GIF_URL,
     TUYA_CLIENT_ID,
@@ -115,30 +115,39 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str) -> bool:
         return False
 
 
-def _pump_model_selector(hass: HomeAssistant) -> selector.SelectSelector:
+def _pump_model_selector() -> selector.SelectSelector:
     """Radio-button selector for PUMP_MODELS (used both at initial setup and
     in the options flow), with plain-language option labels (e.g. "AG1
     (Above-ground pool, 1.5 HP)") instead of the bare model code. A plain
     vol.In(PUMP_MODELS) would only ever show the raw codes.
 
-    Labels are literal strings built via pump_model_label() (same helper
-    the device info card uses — see __init__.py), NOT a translation_key
-    selector: HA's SelectSelector translation-key mechanism requires every
-    OPTION VALUE to itself be a valid translation key ([a-z0-9-_]+, no
-    uppercase), and PUMP_MODELS' real values ("AG1", "IG1", "IG2") fail
-    that — hassfest rejects a "selector.pump_model.options.AG1" key outright.
-    Literal SelectOptionDict labels sidestep the constraint entirely; the
-    trade-off is that the label text follows the HA server's configured
-    language (hass.config.language) rather than each viewer's own browser
-    language, same as the device card.
+    Goes through HA's translation_key selector mechanism — options
+    resolved to display text by the frontend itself, per each VIEWER's
+    own language, exactly like every other string in this flow. This
+    used to build plain literal SelectOptionDict labels instead (via
+    pump_model_label(), still used for the DeviceInfo card — see
+    __init__.py), which only ever followed the server's single
+    hass.config.language: harmless when the viewer's language happened
+    to match the server's, but visibly wrong otherwise (e.g. French pump
+    descriptions inside an otherwise-Spanish form).
+
+    HA's translation_key selector requires every OPTION VALUE to itself
+    be a valid translation key ([a-z0-9-_]+, no uppercase) — hassfest
+    rejects PUMP_MODELS' real values ("AG1", "IG1", "IG2") outright, so
+    PUMP_MODEL_SLUGS (const.py) provides lowercase stand-ins used ONLY as
+    this selector's options. The config entry's actual stored
+    CONF_PUMP_MODEL value is NEVER a slug — every call site that reads
+    this selector's submitted field converts it back via
+    PUMP_MODEL_SLUGS_REVERSE, and every default= passed into this
+    selector's schema must first convert the real value to a slug via
+    PUMP_MODEL_SLUGS. See strings.json / translations/*.json's
+    "selector.pump_model.options" block for the translated text itself.
     """
     return selector.SelectSelector(
         selector.SelectSelectorConfig(
-            options=[
-                selector.SelectOptionDict(value=model, label=pump_model_label(hass, model))
-                for model in PUMP_MODELS
-            ],
+            options=[PUMP_MODEL_SLUGS[model] for model in PUMP_MODELS],
             mode=selector.SelectSelectorMode.LIST,
+            translation_key="pump_model",
         )
     )
 
@@ -457,7 +466,10 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
             dev_id = user_input["device"]
             device = self.__devices[dev_id]
             ip = user_input["ip"]
-            pump_model = user_input[CONF_PUMP_MODEL]
+            # The submitted value is a slug (e.g. "ag1"), not the real
+            # stored value — see PUMP_MODEL_SLUGS in const.py and
+            # _pump_model_selector()'s docstring above for why.
+            pump_model = PUMP_MODEL_SLUGS_REVERSE[user_input[CONF_PUMP_MODEL]]
 
             ok = await self.hass.async_add_executor_job(
                 _test_connection_sync, ip, dev_id, device["local_key"]
@@ -539,8 +551,8 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required("device", default=default_device): vol.In(device_choices),
                     vol.Required("ip", default=default_ip): str,
                     vol.Required(
-                        CONF_PUMP_MODEL, default=default_pump_model
-                    ): _pump_model_selector(self.hass),
+                        CONF_PUMP_MODEL, default=PUMP_MODEL_SLUGS[default_pump_model]
+                    ): _pump_model_selector(),
                 }
             ),
             errors=errors,
@@ -620,7 +632,16 @@ class GoPoolPumpOptionsFlow(OptionsFlowWithReload):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # The submitted value is a slug (e.g. "ag1"), not the real
+            # stored value — see PUMP_MODEL_SLUGS in const.py and
+            # _pump_model_selector()'s docstring above for why.
+            return self.async_create_entry(
+                title="",
+                data={
+                    **user_input,
+                    CONF_PUMP_MODEL: PUMP_MODEL_SLUGS_REVERSE[user_input[CONF_PUMP_MODEL]],
+                },
+            )
 
         current = self.config_entry.options.get(
             CONF_PUMP_MODEL,
@@ -629,7 +650,11 @@ class GoPoolPumpOptionsFlow(OptionsFlowWithReload):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Required(CONF_PUMP_MODEL, default=current): _pump_model_selector(self.hass)}
+                {
+                    vol.Required(
+                        CONF_PUMP_MODEL, default=PUMP_MODEL_SLUGS[current]
+                    ): _pump_model_selector()
+                }
             ),
         )
 

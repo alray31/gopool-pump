@@ -66,5 +66,14 @@
     "rejected_local_key": {
       "message": "The pump at {ip} rejected its stored local key — it was likely removed and re-added in the Smart Life app. Reconfigure this integration to fetch the new key."
     }
+  },
+  "selector": {
+    "pump_model": {
+      "options": {
+        "ag1": "AG1 (Above-ground pool, 1.5 HP)",
+        "ig1": "IG1 (In-ground pool, 1.65 HP)",
+        "ig2": "IG2 (In-ground pool, 2.2 HP)"
+      }
+    }
   }
 }
