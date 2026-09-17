@@ -21,7 +21,7 @@
         },
         "data_description": {
           "ip": "Détectée automatiquement via un scan du réseau local lorsque c'est possible — sinon, trouvez-la dans la liste des clients DHCP de votre routeur, ou dans l'application Smart Life sous les informations de l'appareil.",
-          "pump_model": "Utilisé uniquement pour calculer les capteurs Puissance / Énergie à partir du RPM de la pompe. Pas certain? Vérifiez le modèle inscrit sur votre pompe — vous pourrez changer ceci plus tard sans reconfigurer la pompe. Note : Puissance/Énergie affichent \"indisponible\" pour IG1 et IG2 tant qu'une courbe RPM→W calibrée n'a pas été ajoutée pour ces modèles. Les propriétaires de IG1 ou IG2 peuvent facilement contribuer en partageant les informations demandées dans les [discussions IG1 ou IG2](https://github.com/alray31/gopool-pump/discussions)."
+          "pump_model": "Utilisé uniquement pour calculer les capteurs Puissance / Énergie à partir du RPM de la pompe. Pas certain? Vérifiez le modèle inscrit sur votre pompe — vous pourrez changer ceci plus tard sans reconfigurer la pompe. Note : Puissance/Énergie affichent \"indisponible\" pour IG1 et IG2 tant qu'une courbe RPM→W calibrée n'a pas été ajoutée pour ces modèles. Les propriétaires de IG1 ou IG2 peuvent facilement contribuer en partageant les informations demandées dans les [discussions IG1 ou IG2]({discussions_url})."
         }
       },
       "reconfigure": {
