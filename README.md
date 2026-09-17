@@ -1,6 +1,6 @@
 # GoPool Variable Speed Pump
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat)](https://github.com/hacs/integration) [![HACS Validation](https://github.com/alray31/gopool-pump/actions/workflows/hacs.yml/badge.svg)](https://github.com/alray31/gopool-pump/actions/workflows/hacs.yml) [![Hassfest](https://github.com/alray31/gopool-pump/actions/workflows/hassfest.yml/badge.svg)](https://github.com/alray31/gopool-pump/actions/workflows/hassfest.yml) [![GitHub Release](https://img.shields.io/github/v/release/alray31/gopool-pump?style=flat&color=orange)](https://github.com/alray31/gopool-pump/releases) [![GitHub Release Date](https://img.shields.io/github/release-date/alray31/gopool-pump)](https://github.com/alray31/gopool-pump/releases) [![GitHub Stars](https://img.shields.io/github/stars/alray31/gopool-pump?style=flat)](https://github.com/alray31/gopool-pump/stargazers) [![GitHub Forks](https://img.shields.io/github/forks/alray31/gopool-pump?style=flat)](https://github.com/alray31/gopool-pump/network/members) [![GitHub Issues](https://img.shields.io/github/issues/alray31/gopool-pump)](https://github.com/alray31/gopool-pump/issues) [![Last Commit](https://img.shields.io/github/last-commit/alray31/gopool-pump)](https://github.com/alray31/gopool-pump/commits) [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/github/license/alray31/gopool-pump)](LICENSE)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat)](https://github.com/hacs/integration) [![HACS Validation](https://github.com/alray31/gopool-pump/actions/workflows/hacs.yml/badge.svg)](https://github.com/alray31/gopool-pump/actions/workflows/hacs.yml) [![Hassfest](https://github.com/alray31/gopool-pump/actions/workflows/hassfest.yml/badge.svg)](https://github.com/alray31/gopool-pump/actions/workflows/hassfest.yml) [![Tests](https://github.com/alray31/gopool-pump/actions/workflows/tests.yml/badge.svg)](https://github.com/alray31/gopool-pump/actions/workflows/tests.yml) [![GitHub Release](https://img.shields.io/github/v/release/alray31/gopool-pump?style=flat&color=orange)](https://github.com/alray31/gopool-pump/releases) [![GitHub Release Date](https://img.shields.io/github/release-date/alray31/gopool-pump)](https://github.com/alray31/gopool-pump/releases) [![GitHub Stars](https://img.shields.io/github/stars/alray31/gopool-pump?style=flat)](https://github.com/alray31/gopool-pump/stargazers) [![GitHub Forks](https://img.shields.io/github/forks/alray31/gopool-pump?style=flat)](https://github.com/alray31/gopool-pump/network/members) [![GitHub Issues](https://img.shields.io/github/issues/alray31/gopool-pump)](https://github.com/alray31/gopool-pump/issues) [![Last Commit](https://img.shields.io/github/last-commit/alray31/gopool-pump)](https://github.com/alray31/gopool-pump/commits) [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/github/license/alray31/gopool-pump)](LICENSE)
 
 <img width="1398" height="678" alt="banner" src="https://github.com/user-attachments/assets/8ffd675d-dcd9-47bd-bc88-2c683837a494" />
 
@@ -33,10 +33,13 @@ entièrement en local.
   trouver sur le même sous-réseau que Home Assistant. Par exemple, si
   votre Home Assistant est sur `192.168.1.2`, l'adresse IP de votre pompe
   doit commencer par `192.168.1.x`.
-- Connaître l'adresse IP de votre pompe (par exemple via le menu
-  administrateur de votre routeur Wi-Fi). Il est fortement recommandé de
-  lui assigner une adresse IP statique — si la pompe change d'adresse IP
-  par la suite, il faudra reconfigurer cette intégration.
+- Pas besoin de connaître l'adresse IP à l'avance — l'intégration la
+  détecte automatiquement sur le réseau local lors de la configuration
+  (avec possibilité de la corriger manuellement si la détection échoue).
+  Une IP statique reste une bonne pratique, mais n'est plus indispensable :
+  si l'IP de la pompe change par la suite, l'intégration essaie
+  automatiquement de la retrouver sur le réseau local (voir
+  [Problèmes de connexion locale](#problèmes-de-connexion-locale)).
 - Avoir votre téléphone ou votre tablette avec l'application **Smart
   Life** (ou Tuya Smart) à portée de main pendant la configuration de
   cette intégration.
@@ -79,7 +82,11 @@ animées) directement dans l'interface — inutile de les répéter ici.
 > plus jamais avec le cloud. Vous pouvez supprimer l'application Smart
 > Life de votre téléphone si vous le souhaitez — mais **ne supprimez
 > jamais la pompe de votre compte Smart Life** : cela changerait sa
-> `local_key` et vous obligerait à reconfigurer l'intégration.
+> `local_key`. Si ça arrive quand même, pas besoin de tout reconfigurer :
+> Home Assistant affichera une notification « Nouvelle authentification
+> requise », qui relance automatiquement une connexion QR (identique à
+> l'étape 2 ci-dessus) pour récupérer la nouvelle `local_key` et mettre
+> à jour l'intégration existante.
 
 ### Entités créées
 
@@ -134,9 +141,22 @@ Si la pompe est injoignable après configuration :
   (particulièrement si la pompe est derrière un pont/bridge Wi-Fi).
 - Confirmez que le port 6668 n'est pas bloqué par un pare-feu ou une
   isolation VLAN entre les deux appareils.
-- Retirez, puis rajoutez l'intégration en repassant par le config flow —
-  si la pompe a été retirée/rajoutée dans Smart Life entretemps, sa
-  `local_key` a changé.
+- Si la pompe a été retirée/rajoutée dans Smart Life entretemps, sa
+  `local_key` a changé — inutile de retirer l'intégration : Home
+  Assistant affichera automatiquement une notification de
+  réauthentification pour cette intégration, qui relance une connexion
+  QR pour récupérer la nouvelle `local_key`.
+- Si c'est plutôt l'adresse IP de la pompe qui a changé (aucune IP
+  statique assignée, ou routeur redémarré), l'intégration essaie de la
+  retrouver **automatiquement** : après plusieurs cycles de sondage
+  échoués consécutifs, elle relance un scan du réseau local, et si la
+  pompe répond à une nouvelle adresse, la configuration est mise à jour
+  toute seule (l'intégration se recharge brièvement, sans action de
+  votre part). En attendant que ce scan aboutisse, ou pour corriger
+  l'adresse tout de suite vous-même, un bouton **Reconfigurer** est
+  aussi disponible : Réglages → Appareils et services → cette
+  intégration → menu (⋮) → **Reconfigurer**, pour entrer la nouvelle IP
+  manuellement.
 
 ### Contribuer
 
@@ -204,10 +224,12 @@ Tuya Smart account, then runs entirely locally afterward.
   the same subnet as Home Assistant. For example, if your Home Assistant
   instance is at `192.168.1.2`, your pump's IP address must start with
   `192.168.1.x`.
-- Know your pump's IP address (for example via your Wi-Fi router's admin
-  page). Assigning it a static IP address is strongly recommended — if
-  the pump's IP address changes later, you'll need to reconfigure this
-  integration.
+- No need to know the IP address ahead of time — the integration
+  auto-detects it on your local network during setup (with a manual
+  fallback field if detection doesn't find it). A static IP is still
+  good practice, but no longer required: if the pump's IP changes
+  later, the integration automatically tries to find it again on your
+  local network (see [Local connection issues](#local-connection-issues)).
 - Have your phone or tablet with the **Smart Life** app (or Tuya Smart)
   within reach while setting up this integration.
 - Home Assistant 2026.3.0 or newer.
@@ -248,7 +270,11 @@ captures) built right into the interface — no need to repeat them here.
 > Afterward, the integration never talks to the cloud again. You can
 > safely delete the Smart Life app from your phone if you'd like — but
 > **never remove the pump from your Smart Life account**: doing so would
-> change its `local_key` and require you to reconfigure the integration.
+> change its `local_key`. If that happens anyway, there's no need to
+> reconfigure from scratch: Home Assistant will show a "Reauthentication
+> required" notification that walks you through a fresh QR login
+> (identical to step 2 above) to fetch the new `local_key` and update the
+> existing integration in place.
 
 ### Entities created
 
@@ -301,9 +327,21 @@ If the pump is unreachable after setup:
   (especially if the pump is behind a Wi-Fi bridge/extender).
 - Confirm port 6668 isn't blocked by a firewall or VLAN isolation
   between the two devices.
-- Remove and re-add the integration through the config flow — if the
-  pump was removed and re-added in Smart Life in the meantime, its
-  `local_key` has changed.
+- If the pump was removed and re-added in Smart Life in the meantime,
+  its `local_key` has changed — no need to remove the integration: Home
+  Assistant will automatically show a reauthentication notification for
+  this integration, which relaunches a QR login to fetch the new
+  `local_key`.
+- If instead the pump's IP address changed (no static IP assigned, or
+  the router rebooted), the integration tries to find it
+  **automatically**: after several consecutive failed poll cycles, it
+  reruns a local network scan, and if the pump answers at a new
+  address, the config entry is updated on its own (the integration
+  briefly reloads — no action needed from you). While waiting for that
+  scan to succeed, or to fix the address right away yourself, a
+  **Reconfigure** option is also available: Settings → Devices &
+  services → this integration → (⋮) menu → **Reconfigure**, to enter
+  the new IP manually.
 
 ### Contributing
 

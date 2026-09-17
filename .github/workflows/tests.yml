@@ -1,0 +1,32 @@
+name: Tests
+on:
+  push:
+  pull_request:
+jobs:
+  pytest:
+    runs-on: "ubuntu-latest"
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13"]
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "actions/setup-python@v5"
+        with:
+          python-version: "${{ matrix.python-version }}"
+      - name: Install integration requirements (from manifest.json)
+        # tinytuya / tuya-device-sharing-sdk aren't in requirements_test.txt
+        # (that file is test-only tooling, see its own header) — they're
+        # declared once, in manifest.json's "requirements", which Home
+        # Assistant itself reads to install them at runtime. Reading them
+        # from there instead of hand-duplicating the list here means this
+        # step can't silently go stale the next time a requirement is
+        # added/bumped in manifest.json.
+        run: |
+          python -c "import json; print('\n'.join(json.load(open('custom_components/gopool_pump/manifest.json'))['requirements']))" > /tmp/integration-requirements.txt
+          cat /tmp/integration-requirements.txt
+          pip install -r /tmp/integration-requirements.txt
+      - name: Install test dependencies
+        run: pip install -r requirements_test.txt
+      - name: Run tests
+        run: pytest tests/ -v

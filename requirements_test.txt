@@ -1,0 +1,24 @@
+# Test-only dependencies -- never installed at runtime by Home Assistant
+# (this file isn't referenced by manifest.json). Used by
+# .github/workflows/tests.yml and for running the suite locally:
+#
+#   pip install -r custom_components/gopool_pump/manifest.json's "requirements" (see below)
+#   pip install -r requirements_test.txt
+#   pytest tests/ -v
+#
+# This file does NOT include tinytuya / tuya-device-sharing-sdk -- those
+# are the integration's own runtime dependencies, declared once in
+# manifest.json (which Home Assistant itself reads to install them when
+# the integration loads). tests/test_logic.py imports logic.py directly
+# (see its module docstring), which imports tinytuya -- so even that
+# HA-independent test file needs it installed separately, it's just a
+# much lighter ask than the full harness below. Locally:
+#
+#   pip install tinytuya tuya-device-sharing-sdk
+#
+# .github/workflows/tests.yml installs manifest.json's requirements
+# automatically (parsed at run time, so it can't drift out of sync with
+# this list the way a hand-copied duplicate could).
+pytest
+pytest-asyncio
+pytest-homeassistant-custom-component
