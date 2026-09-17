@@ -71,6 +71,7 @@ from .const import (
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_PUMP_MODEL,
     DOMAIN,
+    PUMP_DISCUSSIONS_URL,
     PUMP_MODEL_SLUGS,
     PUMP_MODEL_SLUGS_REVERSE,
     PUMP_MODELS,
@@ -556,6 +557,12 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+            # Same reasoning as async_step_user's placeholders: hassfest
+            # rejects a literal URL in a translation string, so the
+            # pump_model field's data_description references it as
+            # "{discussions_url}" instead — see PUMP_DISCUSSIONS_URL in
+            # const.py.
+            description_placeholders={"discussions_url": PUMP_DISCUSSIONS_URL},
         )
 
     # ------------------------------------------------------------------

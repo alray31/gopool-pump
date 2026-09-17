@@ -146,14 +146,15 @@ TUYA_IP_RESCAN_COOLDOWN = 300  # seconds between rescan attempts once
 # re-trigger a scan on every single poll cycle forever.
 
 # --------------------------------------------------------------------------
-# Config flow step GIFs. HA's translation linter (hassfest) rejects a raw
-# URL embedded directly in a translation string — it must be passed as a
-# description_placeholder instead, with the string itself only holding a
-# "{placeholder}" token (see config_flow.py, which merges these into every
-# description_placeholders dict for the "user" and "scan" steps).
+# Config flow URLs (GIFs, links to project pages). HA's translation linter
+# (hassfest) rejects a raw URL embedded directly in a translation string —
+# it must be passed as a description_placeholder instead, with the string
+# itself only holding a "{placeholder}" token (see config_flow.py, which
+# merges these into every relevant step's description_placeholders dict).
 # --------------------------------------------------------------------------
 USER_CODE_GIF_URL = "https://raw.githubusercontent.com/alray31/gopool-pump/main/docs/images/user_code.gif"
 QR_SCAN_GIF_URL = "https://raw.githubusercontent.com/alray31/gopool-pump/main/docs/images/qr_scan.gif"
+PUMP_DISCUSSIONS_URL = "https://github.com/alray31/gopool-pump/discussions"
 
 # --------------------------------------------------------------------------
 # DP map: dp_id (str, as used by tinytuya's status() dict) -> entity spec.
