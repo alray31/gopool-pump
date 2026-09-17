@@ -66,5 +66,14 @@
     "rejected_local_key": {
       "message": "位于 {ip} 的水泵拒绝了其已保存的 local key——它可能在 Smart Life 应用中被删除并重新添加。请重新配置本集成以获取新密钥。"
     }
+  },
+  "selector": {
+    "pump_model": {
+      "options": {
+        "ag1": "AG1（地上泳池，1.5 HP）",
+        "ig1": "IG1（地埋泳池，1.65 HP）",
+        "ig2": "IG2（地埋泳池，2.2 HP）"
+      }
+    }
   }
 }

@@ -66,5 +66,14 @@
     "rejected_local_key": {
       "message": "La pompe à l'adresse {ip} a refusé sa local key enregistrée — elle a probablement été retirée puis rajoutée dans l'application Smart Life. Reconfigurez cette intégration pour récupérer la nouvelle clé."
     }
+  },
+  "selector": {
+    "pump_model": {
+      "options": {
+        "ag1": "AG1 (Piscine hors-terre 1.5 HP)",
+        "ig1": "IG1 (Piscine creusée 1.65 HP)",
+        "ig2": "IG2 (Piscine creusée 2.2 HP)"
+      }
+    }
   }
 }

@@ -66,5 +66,14 @@
     "rejected_local_key": {
       "message": "La bomba en {ip} rechazó su local key guardada — probablemente fue eliminada y vuelta a agregar en la aplicación Smart Life. Reconfigura esta integración para obtener la nueva clave."
     }
+  },
+  "selector": {
+    "pump_model": {
+      "options": {
+        "ag1": "AG1 (Piscina sobre el suelo, 1.5 HP)",
+        "ig1": "IG1 (Piscina enterrada, 1.65 HP)",
+        "ig2": "IG2 (Piscina enterrada, 2.2 HP)"
+      }
+    }
   }
 }
