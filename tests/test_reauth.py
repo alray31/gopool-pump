@@ -206,14 +206,18 @@ async def test_pick_device_updates_existing_entry_on_successful_reauth(
             return_value=True,
         ),
     ):
+        # "pump_model": "ag1" -- the selector submits the lowercase slug
+        # (see PUMP_MODEL_SLUGS in const.py), not the real stored value
+        # ("AG1"); async_step_pick_device converts it back before storing.
         result = await flow.async_step_pick_device(
-            {"device": "dev-a", "ip": "192.168.1.51", "pump_model": "AG1"}
+            {"device": "dev-a", "ip": "192.168.1.51", "pump_model": "ag1"}
         )
 
     assert result["type"] == "abort"
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_LOCAL_KEY] == "new-local-key"
     assert entry.data["ip"] == "192.168.1.51"
+    assert entry.data[CONF_PUMP_MODEL] == "AG1"
     assert entry.data[CONF_DEVICE_ID] == "dev-a"
     # Still the same entry, not a second one for the same pump.
     assert len(hass.config_entries.async_entries(DOMAIN)) == 1
@@ -256,6 +260,42 @@ async def test_reconfigure_updates_ip_on_successful_connection_test(
     assert entry.data["ip"] == "192.168.1.99"
     assert entry.data[CONF_LOCAL_KEY] == "old-local-key"
     assert entry.data[CONF_DEVICE_ID] == "dev-a"
+
+
+async def test_options_flow_stores_real_pump_model_not_slug(
+    hass: HomeAssistant,
+) -> None:
+    """_pump_model_selector() (config_flow.py) submits a lowercase slug
+    (see PUMP_MODEL_SLUGS in const.py) so HA's translation_key mechanism
+    can localize each option's label per-viewer, instead of following the
+    server's single hass.config.language like the old plain-literal
+    labels did. async_step_init must convert that slug back via
+    PUMP_MODEL_SLUGS_REVERSE before storing it -- the config entry's
+    options must always hold the real value ("IG1"), never the slug."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == "form"
+    assert result["step_id"] == "init"
+
+    # OptionsFlowWithReload reloads the entry after async_create_entry --
+    # the entry was never actually set up here (no mocked tinytuya device),
+    # so a real reload would try a real (slow, doomed) connection attempt.
+    # Patched out for the same reason test_maybe_heal_ip_* patches
+    # ConfigEntries.async_reload: this test is only about the slug ->
+    # real-value conversion, not the reload itself.
+    with patch(
+        "homeassistant.config_entries.ConfigEntries.async_reload",
+        new_callable=AsyncMock,
+    ):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"pump_model": "ig1"}
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] == "create_entry"
+    assert entry.options[CONF_PUMP_MODEL] == "IG1"
 
 
 async def test_maybe_heal_ip_updates_entry_on_new_ip_found(
