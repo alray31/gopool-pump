@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Link your Smart Life / Tuya Smart account",
-        "description": "**How this works:** once configured, this integration controls your pump entirely locally, without going through the cloud. Initial setup, however, requires a one-time connection to the Smart Life cloud to automatically retrieve your pump's device ID and local key — you won't need to look them up manually.\n\nBefore continuing, make sure your pump has already been added to the Smart Life app, as described in your pump's instruction manual.\n\nOnce setup is complete, the Smart Life app is no longer required, unless you wish to keep using it alongside this integration.\n\n**⚠️ Warning:** if you remove and re-add your pump in Smart Life, its local key will change, and you will need to reconfigure this integration accordingly. You may safely delete the Smart Life app from your phone, but **never remove the pump from your Smart Life account**.\n\n**Where to find your user code:** open the Smart Life app → Profile (bottom-right icon) → gear icon (Settings) → Account and Security → User Code.\n\n![How to find your user code]({user_code_gif_url})",
+        "description": "**How this works:** once configured, this integration controls your pump entirely locally, without going through the cloud. Initial setup, however, requires a one-time connection to the Smart Life cloud to automatically retrieve your pump's device ID and local key — you won't need to look them up manually.\n\nBefore continuing, make sure your pump has already been added to the Smart Life app, as described in your pump's instruction manual.\n\nOnce setup is complete, the Smart Life app is no longer required, unless you wish to keep using it alongside this integration.\n\n**Note:** removing and re-adding your pump in Smart Life changes its local key. No reason to do that on purpose, but if it happens, Home Assistant detects it automatically and prompts you to re-authenticate. You may safely delete the Smart Life app from your phone, but **never remove the pump from your Smart Life account**.\n\n**Where to find your user code:** open the Smart Life app → Profile (bottom-right icon) → gear icon (Settings) → Account and Security → User Code.\n\n![How to find your user code]({user_code_gif_url})",
         "data": {
           "user_code": "User code"
         }
@@ -21,7 +21,17 @@
         },
         "data_description": {
           "ip": "Auto-detected via a local network scan when possible — otherwise, find it in your router's DHCP client list, or in the Smart Life app under your pump's device info.",
-          "pump_model": "Used only to calculate the Power Draw / Energy sensors from the pump's RPM. Not sure? Check the model printed on your pump — you can change this later without reconfiguring the pump. Note: Power/Energy show as unavailable for IG1 and IG2 until a calibrated RPM→W curve is added for those models."
+          "pump_model": "Used only to calculate the Power Draw / Energy sensors from the pump's RPM. Not sure? Check the model printed on your pump — you can change this later without reconfiguring the pump. Note: Power/Energy show as unavailable for IG1 and IG2 until a calibrated RPM→W curve is added for those models. IG1 and IG2 owners can easily help by sharing the requested details in the [IG1 or IG2 discussions]({discussions_url})."
+        }
+      },
+      "reconfigure": {
+        "title": "Update the pump's IP address",
+        "description": "This integration can no longer reach your pump at its stored IP address. Enter its new one below — no need to log in to Smart Life again, only the local IP is changing here.",
+        "data": {
+          "ip": "Local IP address"
+        },
+        "data_description": {
+          "ip": "Auto-detected via a local network scan when possible — otherwise, find it in your router's DHCP client list, or in the Smart Life app under your pump's device info."
         }
       }
     },
@@ -36,7 +46,9 @@
       "already_configured": "This pump is already configured.",
       "device_list_failed": "Could not list devices from your Tuya account after login.",
       "no_devices_found": "No device with a usable local key was found on this account.",
-      "qr_login_failed": "Could not confirm the QR login — Tuya's servers may be unreachable right now. Check your internet connection and try setup again."
+      "qr_login_failed": "Could not confirm the QR login — Tuya's servers may be unreachable right now. Check your internet connection and try setup again.",
+      "reauth_successful": "Re-authentication was successful.",
+      "reconfigure_successful": "Reconfiguration was successful."
     }
   },
   "options": {
@@ -47,6 +59,20 @@
         "data": {
           "pump_model": "Pump model"
         }
+      }
+    }
+  },
+  "exceptions": {
+    "rejected_local_key": {
+      "message": "The pump at {ip} rejected its stored local key — it was likely removed and re-added in the Smart Life app. Reconfigure this integration to fetch the new key."
+    }
+  },
+  "selector": {
+    "pump_model": {
+      "options": {
+        "ag1": "AG1 (Above-ground pool, 1.5 HP)",
+        "ig1": "IG1 (In-ground pool, 1.65 HP)",
+        "ig2": "IG2 (In-ground pool, 2.2 HP)"
       }
     }
   }

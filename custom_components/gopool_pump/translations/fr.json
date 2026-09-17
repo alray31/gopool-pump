@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Lier votre compte Smart Life / Tuya Smart",
-        "description": "**Comment ça fonctionne :** une fois configurée, cette intégration contrôle votre pompe entièrement en local, sans passer par le cloud. La configuration initiale nécessite toutefois une connexion unique au cloud Smart Life afin de récupérer automatiquement le device ID et la local key de votre pompe — vous n'avez donc rien à chercher manuellement.\n\nAvant de continuer, assurez-vous que votre pompe a déjà été ajoutée dans l'application Smart Life, tel que décrit dans le manuel d'instructions de votre pompe.\n\nUne fois la configuration terminée, l'application Smart Life n'est plus nécessaire, sauf si vous souhaitez continuer à l'utiliser en parallèle.\n\n**⚠️ Avertissement :** si vous supprimez puis rajoutez votre pompe dans Smart Life, sa local key changera, et vous devrez reconfigurer cette intégration en conséquence. Vous pouvez supprimer l'application Smart Life de votre téléphone sans problème, mais **ne supprimez jamais la pompe de votre compte Smart Life**.\n\n**Où trouver votre code utilisateur :** ouvrez l'application Smart Life → Profil (icône en bas à droite) → icône d'engrenage (Réglages) → Compte et sécurité → Code utilisateur.\n\n![Comment trouver le code utilisateur]({user_code_gif_url})",
+        "description": "**Comment ça fonctionne :** une fois configurée, cette intégration contrôle votre pompe entièrement en local, sans passer par le cloud. La configuration initiale nécessite toutefois une connexion unique au cloud Smart Life afin de récupérer automatiquement le device ID et la local key de votre pompe — vous n'avez donc rien à chercher manuellement.\n\nAvant de continuer, assurez-vous que votre pompe a déjà été ajoutée dans l'application Smart Life, tel que décrit dans le manuel d'instructions de votre pompe.\n\nUne fois la configuration terminée, l'application Smart Life n'est plus nécessaire, sauf si vous souhaitez continuer à l'utiliser en parallèle.\n\n**Remarque :** supprimer puis rajouter votre pompe dans Smart Life change sa local key. Rien ne justifie de le faire volontairement, mais si ça arrive, Home Assistant le détecte automatiquement et vous propose de vous réauthentifier. Vous pouvez supprimer l'application Smart Life de votre téléphone sans problème, mais **ne supprimez jamais la pompe de votre compte Smart Life**.\n\n**Où trouver votre code utilisateur :** ouvrez l'application Smart Life → Profil (icône en bas à droite) → icône d'engrenage (Réglages) → Compte et sécurité → Code utilisateur.\n\n![Comment trouver le code utilisateur]({user_code_gif_url})",
         "data": {
           "user_code": "Code utilisateur"
         }
@@ -21,7 +21,17 @@
         },
         "data_description": {
           "ip": "Détectée automatiquement via un scan du réseau local lorsque c'est possible — sinon, trouvez-la dans la liste des clients DHCP de votre routeur, ou dans l'application Smart Life sous les informations de l'appareil.",
-          "pump_model": "Utilisé uniquement pour calculer les capteurs Puissance / Énergie à partir du RPM de la pompe. Pas certain? Vérifiez le modèle inscrit sur votre pompe — vous pourrez changer ceci plus tard sans reconfigurer la pompe. Note : Puissance/Énergie affichent \"indisponible\" pour IG1 et IG2 tant qu'une courbe RPM→W calibrée n'a pas été ajoutée pour ces modèles."
+          "pump_model": "Utilisé uniquement pour calculer les capteurs Puissance / Énergie à partir du RPM de la pompe. Pas certain? Vérifiez le modèle inscrit sur votre pompe — vous pourrez changer ceci plus tard sans reconfigurer la pompe. Note : Puissance/Énergie affichent \"indisponible\" pour IG1 et IG2 tant qu'une courbe RPM→W calibrée n'a pas été ajoutée pour ces modèles. Les propriétaires de IG1 ou IG2 peuvent facilement contribuer en partageant les informations demandées dans les [discussions IG1 ou IG2]({discussions_url})."
+        }
+      },
+      "reconfigure": {
+        "title": "Mettre à jour l'adresse IP de la pompe",
+        "description": "Cette intégration n'arrive plus à joindre votre pompe à l'adresse IP enregistrée. Entrez la nouvelle ci-dessous — inutile de vous reconnecter à Smart Life, seule l'adresse IP locale change ici.",
+        "data": {
+          "ip": "Adresse IP locale"
+        },
+        "data_description": {
+          "ip": "Détectée automatiquement via un scan du réseau local lorsque c'est possible — sinon, trouvez-la dans la liste des clients DHCP de votre routeur, ou dans l'application Smart Life sous les informations de l'appareil."
         }
       }
     },
@@ -36,7 +46,9 @@
       "already_configured": "Cette pompe est déjà configurée.",
       "device_list_failed": "Impossible de lister les appareils de votre compte Tuya après la connexion.",
       "no_devices_found": "Aucun appareil avec une local key utilisable n'a été trouvé sur ce compte.",
-      "qr_login_failed": "Impossible de confirmer la connexion QR — les serveurs de Tuya sont peut-être inaccessibles en ce moment. Vérifiez votre connexion internet et relancez la configuration."
+      "qr_login_failed": "Impossible de confirmer la connexion QR — les serveurs de Tuya sont peut-être inaccessibles en ce moment. Vérifiez votre connexion internet et relancez la configuration.",
+      "reauth_successful": "La réauthentification a réussi.",
+      "reconfigure_successful": "La reconfiguration a réussi."
     }
   },
   "options": {
@@ -47,6 +59,20 @@
         "data": {
           "pump_model": "Modèle de pompe"
         }
+      }
+    }
+  },
+  "exceptions": {
+    "rejected_local_key": {
+      "message": "La pompe à l'adresse {ip} a refusé sa local key enregistrée — elle a probablement été retirée puis rajoutée dans l'application Smart Life. Reconfigurez cette intégration pour récupérer la nouvelle clé."
+    }
+  },
+  "selector": {
+    "pump_model": {
+      "options": {
+        "ag1": "AG1 (Piscine hors-terre 1.5 HP)",
+        "ig1": "IG1 (Piscine creusée 1.65 HP)",
+        "ig2": "IG2 (Piscine creusée 2.2 HP)"
       }
     }
   }
