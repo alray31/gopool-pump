@@ -10,12 +10,13 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 import threading
+import time
 
 import tinytuya
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -28,7 +29,11 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     PUMP_MODEL_DESCRIPTIONS,
+    TUYA_IP_RESCAN_AFTER_FAILURES,
+    TUYA_IP_RESCAN_COOLDOWN,
 )
+from .discovery import scan_for_lan_ips
+from .logic import is_key_error_result, is_valid_status_result, should_attempt_ip_rescan
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -145,6 +150,13 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         # (merged, never replaced) so a partial response only ever adds to
         # what's already known instead of blanking it.
         self._dps_cache: dict[str, object] = {}
+        # See _maybe_heal_ip() below and should_attempt_ip_rescan() in
+        # logic.py: tracks consecutive offline poll cycles (reset on any
+        # successful poll) and when a rescan was last attempted, so
+        # background IP self-healing can be paced instead of hammering the
+        # LAN with a UDP scan every single failed cycle.
+        self._consecutive_offline_failures: int = 0
+        self._last_ip_rescan_attempt: float | None = None
 
     def _sync_status(self) -> dict | None:
         with self._device_lock:
@@ -181,27 +193,85 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug("status() raised %s", err)
             return None
 
-    @staticmethod
-    def _is_valid_result(result: dict | None) -> bool:
-        """True only for a genuinely usable status() response.
+    async def _maybe_heal_ip(self) -> None:
+        """Best-effort: look for the pump at a new LAN IP after it stopped
+        answering at the one stored in the config entry, and if found,
+        update the entry so this integration keeps working without the
+        user having to notice and use the manual Reconfigure flow
+        (config_flow.py's async_step_reconfigure).
 
-        tinytuya doesn't only fail by returning a falsy value or omitting
-        "dps" entirely — a busy/contended socket (see the lock above for
-        why that still happens occasionally, e.g. right after the pump's
-        wifi module resets its local session following an external write)
-        can come back as something like {"Error": "...", "Err": "905",
-        "dps": {}}: a dict, with a "dps" key, that's still not usable data.
-        Accepting that as a "successful" poll used to overwrite the
-        coordinator's last known good state with an empty dict, which is
-        what actually caused entities to flash unavailable/blank even
-        after the thread-safety fix — not a failed poll at all, but a
-        *falsely accepted* one.
+        Deliberately does NOT touch self.device / self.device.address, and
+        does NOT retry the poll itself within this same cycle. It persists
+        the new IP via hass.config_entries.async_update_entry(), then
+        explicitly schedules hass.config_entries.async_reload() itself as
+        a background task (hass.async_create_task — fire-and-forget, like
+        Home Assistant's own update-listener dispatch, NOT awaited inline:
+        awaiting a reload of this very entry from inside this coordinator's
+        own _async_update_data call, which is what's calling this method,
+        would mean tearing this coordinator down while it's still mid-poll).
+        Mutating self.device mid-flight instead of going through a reload
+        would race against that for no benefit.
+
+        No update listener is registered for this anymore (there used to
+        be a generic entry.add_update_listener() in async_setup_entry that
+        reloaded on ANY entry.data/options change) — that pattern is
+        deprecated as of Home Assistant 2026.12.0, so each caller that
+        changes the entry (this one included) now triggers its own reload
+        instead of relying on one shared listener. See async_setup_entry's
+        comment for the other two callers and how they each reload.
+
+        Never raises — this always runs from within the offline-failure
+        branch of _async_update_data, which already has its own fallback
+        behavior (keep last known state / raise UpdateFailed) to fall
+        through to regardless of whether healing found anything.
         """
-        return bool(result) and bool(result.get("dps")) and not result.get("Error")
+        if not should_attempt_ip_rescan(
+            has_ever_succeeded=self.data is not None,
+            consecutive_offline_failures=self._consecutive_offline_failures,
+            seconds_since_last_rescan_attempt=(
+                None
+                if self._last_ip_rescan_attempt is None
+                else time.monotonic() - self._last_ip_rescan_attempt
+            ),
+            after_failures=TUYA_IP_RESCAN_AFTER_FAILURES,
+            cooldown_seconds=TUYA_IP_RESCAN_COOLDOWN,
+        ):
+            return
+        # Only stamped once this entry has succeeded at least once — see
+        # should_attempt_ip_rescan()'s has_ever_succeeded=False branch:
+        # a never-yet-successful entry gets a brand new coordinator (and so
+        # a fresh _last_ip_rescan_attempt) on every setup retry already,
+        # so there's no "every cycle forever" risk there to cool down.
+        if self.data is not None:
+            self._last_ip_rescan_attempt = time.monotonic()
+        device_id = self.entry.data[CONF_DEVICE_ID]
+        try:
+            found = await self.hass.async_add_executor_job(scan_for_lan_ips, [device_id])
+        except Exception:  # noqa: BLE001 - best-effort, never let this break polling
+            _LOGGER.debug("IP rescan for %s failed", device_id, exc_info=True)
+            return
+        new_ip = found.get(device_id)
+        current_ip = self.entry.data.get("ip")
+        if not new_ip or new_ip == current_ip:
+            return
+        _LOGGER.warning(
+            "Pump %s unreachable at %s -- found it at %s via a local network "
+            "scan, updating the config entry automatically",
+            device_id,
+            current_ip,
+            new_ip,
+        )
+        self.hass.config_entries.async_update_entry(
+            self.entry, data={**self.entry.data, "ip": new_ip}
+        )
+        self.hass.async_create_task(
+            self.hass.config_entries.async_reload(self.entry.entry_id),
+            name=f"{DOMAIN} IP self-heal reload for {device_id}",
+        )
 
     async def _async_update_data(self) -> dict:
         result = await self._async_poll_once()
-        if not self._is_valid_result(result):
+        if not is_valid_status_result(result):
             # A single failed read is common right after something else
             # (the physical pump controls, the Smart Life app, or another
             # local client such as localTuya if it's still configured on
@@ -214,7 +284,44 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("close() raised %s", err)
             result = await self._async_poll_once()
-        if not self._is_valid_result(result):
+        if not is_valid_status_result(result):
+            if is_key_error_result(result):
+                # Confirmed on BOTH attempts (not just a one-off busy-socket
+                # blip that happens to look similar) — this isn't something
+                # retrying can ever fix, and letting the "keep last known
+                # state" fallback below mask it would leave the pump stuck
+                # forever with no indication why. See is_key_error_result()
+                # in logic.py for exactly what tinytuya returns here and
+                # why. ConfigEntryAuthFailed is Home Assistant's own signal
+                # for "the stored credentials are no longer valid" — the
+                # coordinator (post-setup) and async_setup_entry (first
+                # refresh) both let it propagate instead of catching it, so
+                # HA automatically starts the reauth flow this integration
+                # implements in config_flow.py (async_step_reauth), which
+                # re-runs the same QR login to fetch the new local_key.
+                # translation_domain/translation_key/translation_placeholders
+                # (not just a plain message) so Home Assistant's frontend can
+                # show this in the user's own language instead of always in
+                # English — see exceptions.rejected_local_key in
+                # strings.json / translations/*.json for the localized text.
+                # The plain-English positional message stays as a fallback
+                # for logs and any older frontend that doesn't resolve it.
+                raise ConfigEntryAuthFailed(
+                    f"Rejected local_key for the pump at {self.entry.data.get('ip')} — "
+                    "it was likely removed and re-added in the Smart Life app",
+                    translation_domain=DOMAIN,
+                    translation_key="rejected_local_key",
+                    translation_placeholders={
+                        "ip": str(self.entry.data.get("ip"))
+                    },
+                )
+            # Plain connectivity failure (offline/timeout/wrong IP), not a
+            # rejected key. Count it and give the background self-healer a
+            # chance to find the pump at a new IP — see _maybe_heal_ip()
+            # and should_attempt_ip_rescan() in logic.py for the pacing
+            # policy (never on a single blip; throttled afterwards).
+            self._consecutive_offline_failures += 1
+            await self._maybe_heal_ip()
             if self.data is not None:
                 # Optimistic: keep serving the last known state instead of
                 # raising UpdateFailed, which would grey out every entity.
@@ -232,6 +339,7 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         # DP(s) that just changed must not erase every other DP we already
         # know — see the comment on self._dps_cache above.
         self._dps_cache.update(result["dps"])
+        self._consecutive_offline_failures = 0
         return dict(self._dps_cache)
 
     async def async_write_dp(self, dp_id: str, value) -> None:
@@ -256,6 +364,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         await coordinator.async_config_entry_first_refresh()
+    except ConfigEntryAuthFailed:
+        # DataUpdateCoordinator.async_config_entry_first_refresh() (called
+        # with raise_on_auth_failed=True internally) re-raises this as-is
+        # rather than wrapping it into ConfigEntryNotReady — verified
+        # against Home Assistant core's own update_coordinator.py. Must
+        # NOT be caught by the blanket `except Exception` below: doing so
+        # would silently convert it into an endless-retry ConfigEntryNotReady
+        # loop instead of the reauth flow Home Assistant starts automatically
+        # when this propagates out of async_setup_entry unmodified.
+        raise
     except Exception as err:  # noqa: BLE001 - surfaced to the user via ConfigEntryNotReady
         raise ConfigEntryNotReady(
             f"Could not reach the pump locally at {entry.data['ip']}: {err}"
@@ -263,15 +381,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # Reload the entry when options change (currently just the pump model,
-    # set via the options flow in config_flow.py) so the Power/Energy
-    # sensors pick up the new RPM->W calibration curve immediately.
-    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    # No entry.add_update_listener() here (there used to be one, calling
+    # hass.config_entries.async_reload() on ANY entry.data/options change):
+    # deprecated as of Home Assistant 2026.12.0 in favor of narrower,
+    # purpose-built reload triggers per caller instead of one catch-all
+    # listener. Each of this integration's 3 callers that changes the
+    # entry now handles its own reload:
+    #   - Options flow (pump model) -> GoPoolPumpOptionsFlow now extends
+    #     OptionsFlowWithReload (config_flow.py), which reloads on its own.
+    #   - Reauth / Reconfigure flows -> async_update_reload_and_abort()
+    #     (config_flow.py) already reloads as part of what it does.
+    #   - Background IP self-healing -> GoPoolCoordinator._maybe_heal_ip()
+    #     below schedules its own reload right after updating the entry.
     return True
-
-
-async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

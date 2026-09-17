@@ -20,6 +20,26 @@ used to have (progress steps don't support form fields at all).
 
 Protocol version is fixed at 3.5 (this pump line only ships that version;
 see DEFAULT_PROTOCOL_VERSION in const.py) — not exposed as a choice.
+
+Reauth (async_step_reauth): triggered automatically by Home Assistant
+when GoPoolCoordinator raises ConfigEntryAuthFailed (__init__.py) after
+tinytuya reports the stored local_key was rejected — most commonly
+because the pump was removed and re-added in the Smart Life app, which
+rotates its local_key. Reruns the exact same
+user -> scan -> pick_device steps as a fresh setup (nothing shortened:
+a new local_key can only be fetched via a fresh cloud login), except
+async_step_pick_device pre-selects the already-configured device_id
+when the account still reports it, and updates the existing config
+entry in place instead of creating a new one — see the
+`self.source == SOURCE_REAUTH` branches there.
+
+Reconfigure (async_step_reconfigure): the user-triggered counterpart for
+when it's the pump's LAN IP that changed instead of its local_key — no
+cloud login needed, just a new address to test against the credentials
+already stored. See that method's own docstring for why this one isn't
+auto-triggered the way reauth is, and GoPoolCoordinator's _maybe_heal_ip
+(__init__.py) for the background self-healing attempt that runs before
+a user would ever need this.
 """
 
 from __future__ import annotations
@@ -30,24 +50,18 @@ import logging
 from typing import Any
 
 import tinytuya
-import tinytuya.scanner  # noqa: F401 - needed so tinytuya.scanner.devices() (below) resolves;
-# `import tinytuya` alone does NOT attach the scanner submodule as an
-# attribute. Used directly rather than the tinytuya.deviceScan() wrapper
-# because that wrapper never forwards `wantids`/`byID` through to
-# scanner.devices() (checked against both the manifest's tinytuya>=1.13.0
-# floor and the latest release — true in both) — see _scan_for_lan_ips().
 import voluptuous as vol
 
 from homeassistant.config_entries import (
+    SOURCE_REAUTH,
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
+    OptionsFlowWithReload,
 )
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers import selector
 
-from . import pump_model_label
 from .const import (
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
@@ -57,6 +71,9 @@ from .const import (
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_PUMP_MODEL,
     DOMAIN,
+    PUMP_DISCUSSIONS_URL,
+    PUMP_MODEL_SLUGS,
+    PUMP_MODEL_SLUGS_REVERSE,
     PUMP_MODELS,
     QR_SCAN_GIF_URL,
     TUYA_CLIENT_ID,
@@ -71,6 +88,8 @@ from .const import (
     TUYA_SCHEMA,
     USER_CODE_GIF_URL,
 )
+from .discovery import scan_for_lan_ips
+from .logic import pick_reauth_default_device
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,30 +116,39 @@ def _test_connection_sync(ip: str, device_id: str, local_key: str) -> bool:
         return False
 
 
-def _pump_model_selector(hass: HomeAssistant) -> selector.SelectSelector:
+def _pump_model_selector() -> selector.SelectSelector:
     """Radio-button selector for PUMP_MODELS (used both at initial setup and
     in the options flow), with plain-language option labels (e.g. "AG1
     (Above-ground pool, 1.5 HP)") instead of the bare model code. A plain
     vol.In(PUMP_MODELS) would only ever show the raw codes.
 
-    Labels are literal strings built via pump_model_label() (same helper
-    the device info card uses — see __init__.py), NOT a translation_key
-    selector: HA's SelectSelector translation-key mechanism requires every
-    OPTION VALUE to itself be a valid translation key ([a-z0-9-_]+, no
-    uppercase), and PUMP_MODELS' real values ("AG1", "IG1", "IG2") fail
-    that — hassfest rejects a "selector.pump_model.options.AG1" key outright.
-    Literal SelectOptionDict labels sidestep the constraint entirely; the
-    trade-off is that the label text follows the HA server's configured
-    language (hass.config.language) rather than each viewer's own browser
-    language, same as the device card.
+    Goes through HA's translation_key selector mechanism — options
+    resolved to display text by the frontend itself, per each VIEWER's
+    own language, exactly like every other string in this flow. This
+    used to build plain literal SelectOptionDict labels instead (via
+    pump_model_label(), still used for the DeviceInfo card — see
+    __init__.py), which only ever followed the server's single
+    hass.config.language: harmless when the viewer's language happened
+    to match the server's, but visibly wrong otherwise (e.g. French pump
+    descriptions inside an otherwise-Spanish form).
+
+    HA's translation_key selector requires every OPTION VALUE to itself
+    be a valid translation key ([a-z0-9-_]+, no uppercase) — hassfest
+    rejects PUMP_MODELS' real values ("AG1", "IG1", "IG2") outright, so
+    PUMP_MODEL_SLUGS (const.py) provides lowercase stand-ins used ONLY as
+    this selector's options. The config entry's actual stored
+    CONF_PUMP_MODEL value is NEVER a slug — every call site that reads
+    this selector's submitted field converts it back via
+    PUMP_MODEL_SLUGS_REVERSE, and every default= passed into this
+    selector's schema must first convert the real value to a slug via
+    PUMP_MODEL_SLUGS. See strings.json / translations/*.json's
+    "selector.pump_model.options" block for the translated text itself.
     """
     return selector.SelectSelector(
         selector.SelectSelectorConfig(
-            options=[
-                selector.SelectOptionDict(value=model, label=pump_model_label(hass, model))
-                for model in PUMP_MODELS
-            ],
+            options=[PUMP_MODEL_SLUGS[model] for model in PUMP_MODELS],
             mode=selector.SelectSelectorMode.LIST,
+            translation_key="pump_model",
         )
     )
 
@@ -164,48 +192,6 @@ def _qr_code_html(token: str) -> str:
     )
 
 
-def _scan_for_lan_ips(device_ids: list[str]) -> dict[str, str]:
-    """Best-effort passive UDP scan for each device's LAN IP, keyed by
-    device_id — lets the "pick your pump" form pre-fill the IP field
-    instead of making everyone look it up manually (router's DHCP client
-    list, or the Smart Life app's device info page).
-
-    Tuya devices broadcast their presence periodically over UDP (ports
-    6666/6667/7000, handled entirely by tinytuya). Passing `wantids` makes
-    tinytuya return as soon as every requested device has been heard from,
-    rather than waiting out the full scan window — in practice this is
-    usually a couple of seconds, not the ~18s a plain `python3 -m tinytuya
-    scan` takes with nothing to look for. `forcescan=False` keeps this to
-    passive listening only — no active IP-range sweep, no elevated
-    permissions needed, matching what the user already gets for free by
-    running `python3 -m tinytuya scan` inside the same container.
-    `poll=False`: we only want the IP here, not a dps read (which would
-    need the local_key wired in for no benefit at this stage).
-
-    Never lets an exception escape, and "found nothing" is a normal,
-    silent outcome — this is a convenience, not a requirement. It comes up
-    empty when HA can't see LAN broadcast traffic at all (most commonly: a
-    Docker container on bridge networking instead of host/macvlan) — the
-    "ip" field stays a plain editable text input either way, exactly as it
-    was before this existed.
-    """
-    try:
-        # tinytuya.scanner.devices(), NOT the tinytuya.deviceScan()
-        # wrapper — see the import comment at the top of this file for why.
-        found = tinytuya.scanner.devices(
-            verbose=False,
-            scantime=8,
-            poll=False,
-            forcescan=False,
-            byID=True,
-            wantids=device_ids,
-        )
-    except Exception:  # noqa: BLE001
-        _LOGGER.debug("Local UDP scan for %r failed", device_ids, exc_info=True)
-        return {}
-    return {dev_id: info["ip"] for dev_id, info in found.items() if info.get("ip")}
-
-
 class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for GoPool Variable Speed Pump."""
 
@@ -223,7 +209,7 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         self.__terminal_id: str = ""
         self.__endpoint: str = ""
         self.__devices: dict[str, Any] = {}
-        # dev_id -> LAN IP, from a local UDP scan (see _scan_for_lan_ips())
+        # dev_id -> LAN IP, from a local UDP scan (see scan_for_lan_ips() in discovery.py)
         # — populated once, right after __devices, best-effort.
         self.__discovered_ips: dict[str, str] = {}
         # Background poller for the "scan" step (see __wait_for_scan()) and
@@ -232,11 +218,36 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
         # async_step_scan re-renders the progress screen.
         self.__scan_task: asyncio.Task[None] | None = None
         self.__qr_code_html: str = ""
+        # Set only by async_step_reauth — the device_id already configured
+        # on the entry being reauthenticated, used by async_step_pick_device
+        # to pre-select the same device instead of asking the user to pick
+        # it again (see pick_reauth_default_device() in logic.py).
+        self._reauth_device_id: str | None = None
+
+    # ------------------------------------------------------------------
+    # Reauth entry point — see the module docstring's "Reauth" section.
+    # Home Assistant calls this (not async_step_user) when it starts a
+    # reauth flow; `entry_data` is the failing entry's current .data.
+    # ------------------------------------------------------------------
+    async def async_step_reauth(
+        self, entry_data: dict[str, Any]
+    ) -> ConfigFlowResult:
+        self._reauth_device_id = entry_data.get(CONF_DEVICE_ID)
+        return await self.async_step_user()
 
     # ------------------------------------------------------------------
     # Entry point — ask for the Smart Life / Tuya Smart "user code"
     # (Profile -> Settings -> Account and Security -> user code in the
     # app — NOT the account email/password).
+    #
+    # Also the step Home Assistant lands on for reauth (via
+    # async_step_reauth above): re-entering the user code is genuinely
+    # required there too, not just for a fresh setup — fetching a new
+    # local_key means logging into the Smart Life cloud again, the same
+    # as initial setup. The form/description shown is identical either
+    # way; Home Assistant's own dialog chrome already distinguishes a
+    # reauth flow ("Reauthenticate ...") from a fresh one ("Set up ...")
+    # without this step needing separate translation strings for both.
     # ------------------------------------------------------------------
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -441,84 +452,203 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
             # Best-effort: try to find each device's real LAN IP via a
             # local UDP scan before showing the form, so "ip" below can be
             # pre-filled with something more trustworthy than the cloud's
-            # often-public-facing address — see _scan_for_lan_ips().
+            # often-public-facing address — see scan_for_lan_ips() in discovery.py.
             self.__discovered_ips = await self.hass.async_add_executor_job(
-                _scan_for_lan_ips, list(self.__devices)
+                scan_for_lan_ips, list(self.__devices)
             )
+
+        # Reauth (see async_step_reauth / the module docstring's "Reauth"
+        # section): update the existing entry in place instead of creating
+        # a new one. `reauth_entry` is None for a fresh setup.
+        is_reauth = self.source == SOURCE_REAUTH
+        reauth_entry = self._get_reauth_entry() if is_reauth else None
 
         if user_input is not None:
             dev_id = user_input["device"]
             device = self.__devices[dev_id]
             ip = user_input["ip"]
-            pump_model = user_input[CONF_PUMP_MODEL]
+            # The submitted value is a slug (e.g. "ag1"), not the real
+            # stored value — see PUMP_MODEL_SLUGS in const.py and
+            # _pump_model_selector()'s docstring above for why.
+            pump_model = PUMP_MODEL_SLUGS_REVERSE[user_input[CONF_PUMP_MODEL]]
 
             ok = await self.hass.async_add_executor_job(
                 _test_connection_sync, ip, dev_id, device["local_key"]
             )
             if ok:
+                new_data = {
+                    "name": device["name"],
+                    "ip": ip,
+                    CONF_DEVICE_ID: dev_id,
+                    CONF_LOCAL_KEY: device["local_key"],
+                    CONF_PROTOCOL_VERSION: DEFAULT_PROTOCOL_VERSION,
+                    CONF_PUMP_MODEL: pump_model,
+                }
+                if reauth_entry is not None:
+                    if dev_id != reauth_entry.unique_id:
+                        # Edge case: the account no longer has the
+                        # originally-configured device_id (see
+                        # pick_reauth_default_device()'s docstring in
+                        # logic.py) and the user picked a different device
+                        # from the full list instead — guard against
+                        # silently "adopting" one that's already the
+                        # unique_id of some OTHER config entry.
+                        await self.async_set_unique_id(dev_id)
+                        self._abort_if_unique_id_configured()
+                    return self.async_update_reload_and_abort(
+                        reauth_entry, data_updates=new_data
+                    )
                 await self.async_set_unique_id(dev_id)
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=device["name"],
-                    data={
-                        "name": device["name"],
-                        "ip": ip,
-                        CONF_DEVICE_ID: dev_id,
-                        CONF_LOCAL_KEY: device["local_key"],
-                        CONF_PROTOCOL_VERSION: DEFAULT_PROTOCOL_VERSION,
-                        CONF_PUMP_MODEL: pump_model,
-                    },
-                )
+                return self.async_create_entry(title=device["name"], data=new_data)
             errors["base"] = "cannot_connect"
 
         device_choices = {
             dev_id: f"{info['name']} ({dev_id})" for dev_id, info in self.__devices.items()
         }
-        # Pre-fill "ip" — same single-device assumption as device_choices'
-        # implicit default (HA picks the first entry when "device" has no
-        # explicit default set): whichever value ends up shown only really
-        # matches the actual selection for the common one-pump case, same
-        # as before this scan existed.
-        #
-        # Preferred: the LAN IP a local UDP scan actually found for this
-        # device_id (see _scan_for_lan_ips() — call already made above).
-        # Fallback: the cloud-reported IP, but ONLY when it looks like a
-        # private LAN address — Tuya's device-sharing API frequently
-        # reports a public/WAN address instead, never trusted as-is.
-        first_dev_id = next(iter(self.__devices), None)
-        discovered_ip = self.__discovered_ips.get(first_dev_id, "") if first_dev_id else ""
+        # Which device the selector defaults to: reauth prefers the
+        # device_id already on the entry being reauthenticated (when the
+        # account still reports it) — see pick_reauth_default_device() in
+        # logic.py. A fresh setup gets that same function's plain
+        # "first device" fallback, unchanged from before reauth existed
+        # (HA's frontend used to supply this implicitly when "device" had
+        # no explicit default at all; now it's explicit either way).
+        default_device = pick_reauth_default_device(self.__devices, self._reauth_device_id)
+        # Pre-fill "ip":
+        # - Reauth: the entry's last-known IP first — the pump usually
+        #   kept the same LAN IP (a static IP is recommended in the
+        #   README precisely so this holds), and re-testing it is exactly
+        #   what happens on Submit below regardless.
+        # - Preferred fallback either way: the LAN IP a local UDP scan
+        #   actually found for this device_id (see scan_for_lan_ips() in discovery.py —
+        #   call already made above).
+        # - Last resort: the cloud-reported IP, but ONLY when it looks
+        #   like a private LAN address — Tuya's device-sharing API
+        #   frequently reports a public/WAN address instead, never
+        #   trusted as-is.
+        discovered_ip = self.__discovered_ips.get(default_device, "") if default_device else ""
         if discovered_ip:
-            default_ip = discovered_ip
+            scanned_default_ip = discovered_ip
         else:
-            first_ip = next(iter(self.__devices.values()), {}).get("ip", "")
-            default_ip = first_ip if _looks_private(first_ip) else ""
+            first_ip = self.__devices.get(default_device, {}).get("ip", "")
+            scanned_default_ip = first_ip if _looks_private(first_ip) else ""
+        default_ip = (
+            reauth_entry.data.get("ip") or scanned_default_ip
+            if reauth_entry is not None
+            else scanned_default_ip
+        )
+        default_pump_model = (
+            reauth_entry.options.get(
+                CONF_PUMP_MODEL, reauth_entry.data.get(CONF_PUMP_MODEL, DEFAULT_PUMP_MODEL)
+            )
+            if reauth_entry is not None
+            else DEFAULT_PUMP_MODEL
+        )
 
         return self.async_show_form(
             step_id="pick_device",
             data_schema=vol.Schema(
                 {
-                    vol.Required("device"): vol.In(device_choices),
+                    vol.Required("device", default=default_device): vol.In(device_choices),
                     vol.Required("ip", default=default_ip): str,
                     vol.Required(
-                        CONF_PUMP_MODEL, default=DEFAULT_PUMP_MODEL
-                    ): _pump_model_selector(self.hass),
+                        CONF_PUMP_MODEL, default=PUMP_MODEL_SLUGS[default_pump_model]
+                    ): _pump_model_selector(),
                 }
+            ),
+            errors=errors,
+            # Same reasoning as async_step_user's placeholders: hassfest
+            # rejects a literal URL in a translation string, so the
+            # pump_model field's data_description references it as
+            # "{discussions_url}" instead — see PUMP_DISCUSSIONS_URL in
+            # const.py.
+            description_placeholders={"discussions_url": PUMP_DISCUSSIONS_URL},
+        )
+
+    # ------------------------------------------------------------------
+    # Manual "Reconfigure" entry point (Settings -> Devices & services ->
+    # this integration -> "..." -> Reconfigure) for when the pump's LAN IP
+    # changed and it's no longer reachable at the address on the entry.
+    #
+    # Deliberately NOT the same user -> scan -> pick_device journey as
+    # async_step_reauth: the local_key hasn't changed here, only the IP,
+    # so there's nothing to re-fetch from the Smart Life cloud — this is
+    # a single short step that re-tests the EXISTING credentials against
+    # a new address, pre-filled via the same passive LAN scan setup uses
+    # (see discovery.py) when it can find the pump.
+    #
+    # Home Assistant does not trigger this one automatically the way it
+    # does async_step_reauth for ConfigEntryAuthFailed — a plain
+    # connectivity failure isn't necessarily permanent, so there's no
+    # built-in "start a reconfigure flow" signal to hook into. Between
+    # this and GoPoolCoordinator's own background self-healing attempt
+    # (see _maybe_heal_ip in __init__.py, which tries the same scan
+    # automatically after sustained failures), this manual step is the
+    # fallback for when that best-effort scan can't see the pump either
+    # (e.g. HA can't observe LAN broadcast traffic at all — see
+    # discovery.py's docstring) and the user has to type the IP in
+    # themselves.
+    # ------------------------------------------------------------------
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        discovered_ip = ""
+        if user_input is None:
+            found = await self.hass.async_add_executor_job(
+                scan_for_lan_ips, [entry.data[CONF_DEVICE_ID]]
+            )
+            discovered_ip = found.get(entry.data[CONF_DEVICE_ID], "")
+
+        if user_input is not None:
+            ip = user_input["ip"]
+            ok = await self.hass.async_add_executor_job(
+                _test_connection_sync, ip, entry.data[CONF_DEVICE_ID], entry.data[CONF_LOCAL_KEY]
+            )
+            if ok:
+                return self.async_update_reload_and_abort(entry, data_updates={"ip": ip})
+            errors["base"] = "cannot_connect"
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {vol.Required("ip", default=discovered_ip or entry.data.get("ip", "")): str}
             ),
             errors=errors,
         )
 
 
-class GoPoolPumpOptionsFlow(OptionsFlow):
+class GoPoolPumpOptionsFlow(OptionsFlowWithReload):
     """Lets the pump model — used only to pick the RPM->W calibration curve
     for the Power Draw / Energy sensors, see RPM_POWER_TABLES in const.py —
     be changed after initial setup, without deleting and re-adding the
-    integration."""
+    integration.
+
+    OptionsFlowWithReload (not the plain OptionsFlow) automatically
+    reloads the entry after async_create_entry below, which is exactly
+    (and ONLY) what this integration's old entry.add_update_listener +
+    _async_update_listener in __init__.py used to do by hand — that
+    manual pattern is deprecated as of Home Assistant 2026.12.0 in favor
+    of this. See __init__.py's async_setup_entry for the other reload
+    case (IP self-healing) this class doesn't cover, handled separately.
+    """
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # The submitted value is a slug (e.g. "ag1"), not the real
+            # stored value — see PUMP_MODEL_SLUGS in const.py and
+            # _pump_model_selector()'s docstring above for why.
+            return self.async_create_entry(
+                title="",
+                data={
+                    **user_input,
+                    CONF_PUMP_MODEL: PUMP_MODEL_SLUGS_REVERSE[user_input[CONF_PUMP_MODEL]],
+                },
+            )
 
         current = self.config_entry.options.get(
             CONF_PUMP_MODEL,
@@ -527,7 +657,11 @@ class GoPoolPumpOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Required(CONF_PUMP_MODEL, default=current): _pump_model_selector(self.hass)}
+                {
+                    vol.Required(
+                        CONF_PUMP_MODEL, default=PUMP_MODEL_SLUGS[current]
+                    ): _pump_model_selector()
+                }
             ),
         )
 

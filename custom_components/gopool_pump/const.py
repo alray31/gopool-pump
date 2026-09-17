@@ -27,11 +27,14 @@ DEFAULT_PUMP_MODEL = "AG1"
 
 # What each model code actually is, in plain terms — used both on the
 # device info card and in the config/options flow's "Pump model" selector
-# (see pump_model_label() in __init__.py, used by both). Plain Python
-# dict, not an HA selector translation: a SelectSelector translation_key
-# requires the OPTION VALUE itself to be a valid translation key
-# ([a-z0-9-_]+, lowercase only), which "AG1"/"IG1"/"IG2" fail — see
-# pump_model_label()'s docstring for the full explanation.
+# (see pump_model_label() in __init__.py, used by the DeviceInfo card's
+# "model" field). Plain Python dict, not an HA selector translation,
+# because that field is server-rendered with no per-viewer translation
+# mechanism at all in Home Assistant — this always follows
+# hass.config.language (the server's single configured language), no way
+# around it. Config-flow SELECTORS don't have that limitation and now go
+# through HA's own translation_key mechanism instead — see
+# PUMP_MODEL_SLUGS below and _pump_model_selector() in config_flow.py.
 #
 # Only the languages pump_model_label() actually resolves to are useful
 # here (see its language -> dict-key mapping) — adding a language to one
@@ -56,6 +59,19 @@ PUMP_MODEL_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "zh": "地埋泳池，2.2 HP",
     },
 }
+
+# Lowercase stand-ins for PUMP_MODELS' real (uppercase) values, used ONLY
+# by config_flow.py's _pump_model_selector() for its widget options. HA's
+# translation_key selector mechanism (which resolves option labels
+# per-VIEWER, unlike PUMP_MODEL_DESCRIPTIONS above) requires every option
+# VALUE to itself be a valid translation key ([a-z0-9-_]+, no uppercase),
+# and hassfest rejects "AG1"/"IG1"/"IG2" outright. The config entry's
+# actual stored CONF_PUMP_MODEL value is NEVER the slug — config_flow.py
+# converts back via PUMP_MODEL_SLUGS_REVERSE the moment a submitted form
+# is read, so this exists purely as an implementation detail of that one
+# selector, invisible everywhere else (no data migration needed).
+PUMP_MODEL_SLUGS: dict[str, str] = {"AG1": "ag1", "IG1": "ig1", "IG2": "ig2"}
+PUMP_MODEL_SLUGS_REVERSE: dict[str, str] = {slug: model for model, slug in PUMP_MODEL_SLUGS.items()}
 
 # Fixed, not user-selectable: every GoPool AG1/IG1/IG2 pump confirmed so far
 # uses local protocol 3.5. Still stored per config entry (not hardcoded at
@@ -111,14 +127,34 @@ TUYA_QR_MAX_CONSECUTIVE_ERRORS = 5  # consecutive *transport* failures
 # response) before giving up instead of retrying forever.
 
 # --------------------------------------------------------------------------
-# Config flow step GIFs. HA's translation linter (hassfest) rejects a raw
-# URL embedded directly in a translation string — it must be passed as a
-# description_placeholder instead, with the string itself only holding a
-# "{placeholder}" token (see config_flow.py, which merges these into every
-# description_placeholders dict for the "user" and "scan" steps).
+# Background IP self-healing (GoPoolCoordinator._maybe_heal_ip,
+# __init__.py): when the pump's LAN IP changes (no static IP assigned —
+# see the README), local polling starts failing with a plain connectivity
+# error, not the local_key rejection that triggers reauth. Rather than
+# staying stuck until the user manually fixes it (via the "Reconfigure"
+# flow, async_step_reconfigure in config_flow.py), the coordinator tries
+# the same passive LAN scan setup uses (discovery.py) on its own first —
+# see should_attempt_ip_rescan() in logic.py for exactly when.
+# --------------------------------------------------------------------------
+TUYA_IP_RESCAN_AFTER_FAILURES = 10  # consecutive failed POLL CYCLES (each
+# cycle already retries once internally, see _async_update_data) before
+# attempting a rescan — at the default 3s poll interval that's ~30s of
+# being unreachable, comfortably past a one-off wifi blip.
+TUYA_IP_RESCAN_COOLDOWN = 300  # seconds between rescan attempts once
+# should_attempt_ip_rescan() starts returning True for a given entry — an
+# extended outage (pump powered off, real network down) must not
+# re-trigger a scan on every single poll cycle forever.
+
+# --------------------------------------------------------------------------
+# Config flow URLs (GIFs, links to project pages). HA's translation linter
+# (hassfest) rejects a raw URL embedded directly in a translation string —
+# it must be passed as a description_placeholder instead, with the string
+# itself only holding a "{placeholder}" token (see config_flow.py, which
+# merges these into every relevant step's description_placeholders dict).
 # --------------------------------------------------------------------------
 USER_CODE_GIF_URL = "https://raw.githubusercontent.com/alray31/gopool-pump/main/docs/images/user_code.gif"
 QR_SCAN_GIF_URL = "https://raw.githubusercontent.com/alray31/gopool-pump/main/docs/images/qr_scan.gif"
+PUMP_DISCUSSIONS_URL = "https://github.com/alray31/gopool-pump/discussions"
 
 # --------------------------------------------------------------------------
 # DP map: dp_id (str, as used by tinytuya's status() dict) -> entity spec.
