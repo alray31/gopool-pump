@@ -140,6 +140,22 @@ etc.) sont volontairement exclus.
   inférieure à 1150 envoyée à cette entité, en local ou via le cloud Tuya,
   est silencieusement ignorée par la pompe. Rien à voir avec cette
   intégration ni avec Home Assistant.
+- Cette même restriction fausse les capteurs **Power Draw** / **Energy**
+  dans deux cas précis, puisqu'ils sont calculés à partir de la vitesse
+  rapportée par **Pump Speed** (DP103) :
+  - **Quick Clean Speed** accepte 1000-3450 RPM par incréments de 10, alors
+    que Pump Speed n'accepte que des incréments de 50 à partir de 1150. Si
+    la vitesse Quick Clean choisie n'est pas un multiple de 50 (ou est sous
+    1150), Pump Speed ne reflétera pas la vitesse réelle pendant le cycle,
+    et Power Draw / Energy seront donc inexacts pour sa durée.
+  - **Stage 1-4 Speed** (les horaires programmés) acceptent 1000-3450 RPM.
+    Un palier réglé sous 1150 RPM tournera bel et bien à cette vitesse sur
+    la pompe, mais Pump Speed n'en sera jamais informé — Power Draw /
+    Energy seront donc inexacts pendant toute la durée de ce palier. C'est
+    d'ailleurs le cas d'usage le plus probable pour des vitesses sous 1150
+    RPM (filtration lente de nuit / hors-pointe pour économiser de
+    l'énergie), donc à garder en tête si la précision d'Energy vous
+    importe pour ces plages horaires.
 
 ### Problèmes de connexion locale
 
@@ -333,6 +349,21 @@ intentionally excluded.
   against the pump's official Tuya schema) — any value below 1150 sent
   to this entity, locally or via Tuya's cloud, is silently ignored by
   the pump. Nothing to do with this integration or Home Assistant.
+- That same restriction throws off the **Power Draw** / **Energy**
+  sensors in two specific cases, since they're computed from the speed
+  reported by **Pump Speed** (DP103):
+  - **Quick Clean Speed** accepts 1000-3450 RPM in steps of 10, while Pump
+    Speed only accepts steps of 50 starting at 1150. If the chosen Quick
+    Clean speed isn't a multiple of 50 (or is below 1150), Pump Speed
+    won't reflect the actual speed for the duration of the cycle, so
+    Power Draw / Energy will be inaccurate for that stretch.
+  - **Stage 1-4 Speed** (the programmed schedule) accepts 1000-3450 RPM.
+    A stage set below 1150 RPM does run at that speed on the pump, but
+    Pump Speed never finds out — Power Draw / Energy will be inaccurate
+    for the whole time that stage runs. This is arguably the most likely
+    case for a sub-1150 speed in the first place (slow overnight/off-peak
+    filtration to save energy), so worth keeping in mind if Energy
+    accuracy during those windows matters to you.
 
 ### Local connection issues
 
