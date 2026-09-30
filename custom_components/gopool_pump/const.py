@@ -295,10 +295,10 @@ STAGE_START_TIME_DPS: dict[int, dict[str, str]] = {
 # interpolation between the points below) and, integrated over time in
 # Python, a cumulative "Energy" sensor — no HA template or helper needed.
 #
-# AG1: measured directly on a real AG1 pump (6 real data points, see this
+# AG1 / IG1: measured directly on a real pumps (6 real data points, see this
 #   project's README for the methodology) — sensor.py interpolates between
 #   them for the other 50 RPM steps.
-# IG1 / IG2: no measurements yet. Deliberately left as None instead of
+# IG2: no measurements yet. Deliberately left as None instead of
 #   reusing the AG1 curve or guessing — the motor/impeller differ enough
 #   between lines that a borrowed curve could be meaningfully wrong. The
 #   Power Draw / Energy sensors report "unavailable" for these two models
@@ -315,6 +315,13 @@ RPM_POWER_TABLES: dict[str, list[tuple[int, int]] | None] = {
         (2850, 374),
         (3450, 637),
     ],
-    "IG1": None,
+    "IG1": [
+        (1000, 47),
+        (1500, 105),
+        (2000, 235),
+        (2450, 402),
+        (2850, 619),
+        (3450, 1090),
+    ],
     "IG2": None,
 }
