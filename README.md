@@ -97,7 +97,7 @@ animées) directement dans l'interface — inutile de les répéter ici.
 | `number` (contrôle) | Pump Speed |
 | `number` (configuration) | Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |
 | `select` (configuration) | Stage 1-4 Start Time (heure + minute combinées en un seul sélecteur, valeurs limitées aux paliers de 10 minutes acceptés par la pompe) |
-| `sensor` | Power Draw (W), Energy (kWh) — calculés à partir du RPM commandé et du modèle de pompe choisi à la configuration (voir [Contribuer](#contribuer) pour IG1/IG2) |
+| `sensor` | Power Draw (W), Energy (kWh) — calculés à partir du RPM commandé et du modèle de pompe choisi à la configuration (voir [Contribuer](#contribuer) pour IG2) |
 
 Seuls les DP (data points) confirmés fonctionnels localement sur ces
 pompes sont exposés — les DP inertes (fault, schedule, motor_operation_state,
@@ -129,9 +129,9 @@ etc.) sont volontairement exclus.
   mais Tuya pourrait un jour limiter cet usage tiers sans préavis.
 - Testé sur GoPool AG1 ; les DP des IG1/IG2 sont supposément identiques
   mais pas encore confirmés sur le terrain.
-- Les capteurs Power Draw / Energy affichent **indisponible** pour IG1 et
-  IG2 : la courbe de calibration RPM→W n'existe pour l'instant que pour la
-  AG1 (voir [Contribuer](#contribuer) ci-dessous).
+- Les capteurs Power Draw / Energy affichent **indisponible** pour
+  IG2 : la courbe de calibration RPM→W n'existe pour l'instant que pour les
+  AG1 et IG1 (voir [Contribuer](#contribuer) ci-dessous).
 
 ### Problèmes de connexion locale
 
@@ -160,12 +160,12 @@ Si la pompe est injoignable après configuration :
 
 ### Contribuer
 
-**Vous possédez une pompe IG1 ou IG2 ?** Les capteurs **Power Draw** (W)
+**Vous possédez une pompe IG2 ?** Les capteurs **Power Draw** (W)
 et **Energy** (kWh) reposent sur une courbe de calibration RPM → Watts
 mesurée directement sur une pompe réelle. Pour l'instant, seule la courbe
-de la **AG1** est disponible ; ces deux capteurs affichent donc
-« indisponible » sur IG1 et IG2. Si votre pompe affiche la puissance
-directement sur son écran (comme la AG1), votre contribution serait très
+des **AG1 et IG1** est disponible ; ces deux capteurs affichent donc
+« indisponible » sur IG2. Si votre pompe affiche la puissance
+directement sur son écran, votre contribution serait très
 appréciée : notez la valeur affichée (en watts) à au minimum ces deux
 paliers,
 
@@ -285,7 +285,7 @@ captures) built right into the interface — no need to repeat them here.
 | `number` (control) | Pump Speed |
 | `number` (configuration) | Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |
 | `select` (configuration) | Stage 1-4 Start Time (hour + minute combined into a single picker, restricted to the 10-minute steps the pump accepts) |
-| `sensor` | Power Draw (W), Energy (kWh) — calculated from the commanded RPM and the pump model chosen during setup (see [Contributing](#contributing) for IG1/IG2) |
+| `sensor` | Power Draw (W), Energy (kWh) — calculated from the commanded RPM and the pump model chosen during setup (see [Contributing](#contributing) for IG2) |
 
 Only data points (DPs) confirmed to work locally on these pumps are
 exposed — dead DPs (fault, schedule, motor_operation_state, etc.) are
@@ -315,8 +315,8 @@ intentionally excluded.
   could restrict this third-party usage at some point without notice.
 - Tested on the GoPool AG1; IG1/IG2 DPs are presumed identical but not
   yet confirmed in the field.
-- The Power Draw / Energy sensors show as **unavailable** on IG1 and
-  IG2: an RPM→W calibration curve currently exists only for the AG1 (see
+- The Power Draw / Energy sensors show as **unavailable** on
+  IG2: an RPM→W calibration curve currently exists only for the AG1 and IG1 (see
   [Contributing](#contributing) below).
 
 ### Local connection issues
@@ -345,10 +345,10 @@ If the pump is unreachable after setup:
 
 ### Contributing
 
-**Do you own an IG1 or IG2 pump?** The **Power Draw** (W) and **Energy**
+**Do you own an IG2 pump?** The **Power Draw** (W) and **Energy**
 (kWh) sensors rely on an RPM → Watts calibration curve measured directly
-on a real pump. Right now, only the **AG1** curve is available, so these
-two sensors show as "unavailable" on IG1 and IG2. If your pump displays
+on a real pump. Right now, only the **AG1 and IG1** curve are available, so these
+two sensors show as "unavailable" on IG2. If your pump displays
 its power draw directly on its screen (like the AG1 does), your
 contribution would be very welcome: note down the displayed value (in
 watts) at least at these two points,
