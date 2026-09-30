@@ -21,7 +21,7 @@
         },
         "data_description": {
           "ip": "Detectada automáticamente mediante un escaneo de la red local cuando es posible — de lo contrario, búscala en la lista de clientes DHCP de tu router, o en la aplicación Smart Life en la información del dispositivo.",
-          "pump_model": "Se usa únicamente para calcular los sensores de Consumo / Energía a partir del RPM de la bomba. ¿No estás seguro? Revisa el modelo impreso en tu bomba — podrás cambiarlo más tarde sin reconfigurar la bomba. Nota: Consumo/Energía se muestran como no disponibles para IG2 hasta que se agregue una curva RPM→W calibrada para esos modelos. Los propietarios de IG2 pueden contribuir fácilmente compartiendo la información solicitada en las [discusiones de IG2]({discussions_url})."
+          "pump_model": "Se usa únicamente para calcular los sensores de Consumo / Energía a partir del RPM de la bomba. ¿No estás seguro? Revisa el modelo impreso en tu bomba — podrás cambiarlo más tarde sin reconfigurar la bomba. Nota: Consumo/Energía se muestran como no disponibles para IG2 hasta que se agregue una curva RPM→W calibrada para ese modelo. Los propietarios de IG2 pueden contribuir fácilmente compartiendo la información solicitada en las [discusiones de IG2]({discussions_url})."
         }
       },
       "reconfigure": {
@@ -55,7 +55,7 @@
     "step": {
       "init": {
         "title": "Opciones de GoPool Pump",
-        "description": "Cambia el modelo de bomba usado para calcular los sensores de Consumo / Energía. Nota: Consumo/Energía se muestran como no disponibles para IG1 e IG2 hasta que se agregue una curva RPM→W calibrada para esos modelos.",
+        "description": "Cambia el modelo de bomba usado para calcular los sensores de Consumo / Energía. Nota: Consumo/Energía se muestran como no disponibles para IG2 hasta que se agregue una curva RPM→W calibrada para ese modelo.",
         "data": {
           "pump_model": "Modelo de bomba"
         }

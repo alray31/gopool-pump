@@ -92,7 +92,7 @@ animées) directement dans l'interface — inutile de les répéter ici.
 
 | Type | Entité |
 |---|---|
-| `switch` (contrôle) | Power, Quick Clean |
+| `switch` (contrôle) | Power, Schedule, Quick Clean |
 | `switch` (configuration) | No Load Protection |
 | `number` (contrôle) | Pump Speed |
 | `number` (configuration) | Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |
@@ -280,7 +280,7 @@ captures) built right into the interface — no need to repeat them here.
 
 | Type | Entity |
 |---|---|
-| `switch` (control) | Power, Quick Clean |
+| `switch` (control) | Power, Schedule, Quick Clean |
 | `switch` (configuration) | No Load Protection |
 | `number` (control) | Pump Speed |
 | `number` (configuration) | Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |

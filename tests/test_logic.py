@@ -79,11 +79,12 @@ def test_interpolate_above_range_clamps_to_last():
     assert interpolate_rpm_to_watts(999999, SIMPLE_TABLE) == 500.0
 
 
-def test_interpolate_against_real_ag1_curve():
+@pytest.mark.parametrize("model", ["AG1", "IG1"])
+def test_interpolate_against_real_calibrated_curve(model):
     # Guards the actual shipped calibration data (const.py), not just
-    # synthetic tables — a future edit to RPM_POWER_TABLES["AG1"] that
-    # breaks monotonicity or the endpoints would fail here.
-    table = RPM_POWER_TABLES["AG1"]
+    # synthetic tables — a future edit to RPM_POWER_TABLES["AG1"] or
+    # ["IG1"] that breaks monotonicity or the endpoints would fail here.
+    table = RPM_POWER_TABLES[model]
     assert table is not None
     # Every measured point interpolates back to itself exactly.
     for rpm, watts in table:
@@ -93,13 +94,13 @@ def test_interpolate_against_real_ag1_curve():
     assert watts_by_rpm == sorted(watts_by_rpm)
 
 
-def test_ig1_ig2_have_no_curve_yet():
+def test_ig2_has_no_curve_yet():
     # Documents the current, intentional state (see const.py's comment on
     # RPM_POWER_TABLES) — this test is meant to start failing the day
-    # someone adds real IG1/IG2 calibration data, as a reminder to also
+    # someone adds real IG2 calibration data, as a reminder to also
     # update this test (and the README's "Contribuer"/"Contribute"
-    # section) rather than silently drifting out of sync.
-    assert RPM_POWER_TABLES["IG1"] is None
+    # section) rather than silently drifting out of sync. IG1 had the same
+    # tripwire until real data was added for it — see git history.
     assert RPM_POWER_TABLES["IG2"] is None
 
 

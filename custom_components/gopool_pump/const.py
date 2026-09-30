@@ -161,9 +161,9 @@ PUMP_DISCUSSIONS_URL = "https://github.com/alray31/gopool-pump/discussions"
 # platform: "switch" | "number"
 # category: omitted -> primary control (shown at the top of the device
 #   page); "config" -> secondary/configuration entity (shown collapsed
-#   under "Configuration"). Only the 3 entities the user actually
-#   interacts with day-to-day (Power, Pump Speed, Quick Clean) are
-#   controls — everything else is setup/tuning.
+#   under "Configuration"). Only the 4 entities the user actually
+#   interacts with day-to-day (Power, Schedule, Pump Speed, Quick Clean)
+#   are controls — everything else is setup/tuning.
 # --------------------------------------------------------------------------
 # Named separately from DP_MAP's string keys because sensor.py also needs
 # them directly (to read the power switch state / commanded RPM when
@@ -178,6 +178,20 @@ DP_MAP: dict[str, dict] = {
         "key": "power",
         "name": "Power",
         "icon": "mdi:pump",
+    },
+    # Whether the pump follows its own onboard Stage 1-4 schedule
+    # automatically. Confirmed working locally — NOT the same DP as the
+    # inert "schedule_status" mentioned in this file's module docstring
+    # (that one never reported a usable value and stays excluded; this is
+    # a different, separately-confirmed DP). Kept as a primary control
+    # (no "category") rather than "config": like Power, it's something
+    # users flip day-to-day — e.g. off for manual control via HA, back on
+    # to resume the pump's own Stage 1-4 timers.
+    "102": {
+        "platform": "switch",
+        "key": "schedule",
+        "name": "Schedule",
+        "icon": "mdi:calendar-sync",
     },
     # Current / commanded speed — DP103 actually controls the speed despite
     # its "current" name (confirmed empirically, see README).
