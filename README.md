@@ -127,8 +127,9 @@ etc.) sont volontairement exclus.
 - Le mécanisme de QR login réutilise un identifiant client appartenant à
   Home Assistant. Cela fonctionne aujourd'hui (confirmé par la communauté),
   mais Tuya pourrait un jour limiter cet usage tiers sans préavis.
-- Testé sur GoPool AG1 ; les DP des IG1/IG2 sont supposément identiques
-  mais pas encore confirmés sur le terrain.
+- Testé sur GoPool AG1 et IG1 (fonctionnement confirmé sur le terrain par
+  plusieurs utilisateurs pour l'IG1) ; les DP de l'IG2 sont supposément
+  identiques mais pas encore confirmés sur le terrain.
 - Les capteurs Power Draw / Energy affichent **indisponible** pour
   IG2 : la courbe de calibration RPM→W n'existe pour l'instant que pour les
   AG1 et IG1 (voir [Contribuer](#contribuer) ci-dessous).
@@ -337,8 +338,9 @@ intentionally excluded.
 - The QR login mechanism reuses a client identifier that belongs to Home
   Assistant. This works today (confirmed by the community), but Tuya
   could restrict this third-party usage at some point without notice.
-- Tested on the GoPool AG1; IG1/IG2 DPs are presumed identical but not
-  yet confirmed in the field.
+- Tested on the GoPool AG1 and IG1 (field-confirmed working by several
+  users for the IG1); IG2 DPs are presumed identical but not yet
+  confirmed in the field.
 - The Power Draw / Energy sensors show as **unavailable** on
   IG2: an RPM→W calibration curve currently exists only for the AG1 and IG1 (see
   [Contributing](#contributing) below).
