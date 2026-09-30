@@ -21,7 +21,7 @@
         },
         "data_description": {
           "ip": "Auto-detected via a local network scan when possible — otherwise, find it in your router's DHCP client list, or in the Smart Life app under your pump's device info.",
-          "pump_model": "Used only to calculate the Power Draw / Energy sensors from the pump's RPM. Not sure? Check the model printed on your pump — you can change this later without reconfiguring the pump. Note: Power/Energy show as unavailable for IG2 until a calibrated RPM→W curve is added for those models. IG2 owners can easily help by sharing the requested details in the [IG2 discussions]({discussions_url})."
+          "pump_model": "Used only to calculate the Power Draw / Energy sensors from the pump's RPM. Not sure? Check the model printed on your pump — you can change this later without reconfiguring the pump. Note: Power/Energy show as unavailable for IG2 until a calibrated RPM→W curve is added for that model. IG2 owners can easily help by sharing the requested details in the [IG2 discussions]({discussions_url})."
         }
       },
       "reconfigure": {
@@ -55,7 +55,7 @@
     "step": {
       "init": {
         "title": "GoPool Pump options",
-        "description": "Change the pump model used to calculate the Power Draw / Energy sensors. Note: Power/Energy show as unavailable for IG1 and IG2 until a calibrated RPM→W curve is added for those models.",
+        "description": "Change the pump model used to calculate the Power Draw / Energy sensors. Note: Power/Energy show as unavailable for IG2 until a calibrated RPM→W curve is added for that model.",
         "data": {
           "pump_model": "Pump model"
         }
