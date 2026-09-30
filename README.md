@@ -132,6 +132,14 @@ etc.) sont volontairement exclus.
 - Les capteurs Power Draw / Energy affichent **indisponible** pour
   IG2 : la courbe de calibration RPM→W n'existe pour l'instant que pour les
   AG1 et IG1 (voir [Contribuer](#contribuer) ci-dessous).
+- L'entité **Pump Speed** ne descend pas sous **1150 RPM**, même si la
+  pompe peut physiquement atteindre 1000 RPM (manuellement au panneau, ou
+  via un palier programmé/horaire). C'est une restriction du firmware du
+  fabricant sur la commande de vitesse « en direct » spécifiquement
+  (confirmé via le schéma Tuya officiel de la pompe) — toute valeur
+  inférieure à 1150 envoyée à cette entité, en local ou via le cloud Tuya,
+  est silencieusement ignorée par la pompe. Rien à voir avec cette
+  intégration ni avec Home Assistant.
 
 ### Problèmes de connexion locale
 
@@ -318,6 +326,13 @@ intentionally excluded.
 - The Power Draw / Energy sensors show as **unavailable** on
   IG2: an RPM→W calibration curve currently exists only for the AG1 and IG1 (see
   [Contributing](#contributing) below).
+- The **Pump Speed** entity won't go below **1150 RPM**, even though the
+  pump can physically reach 1000 RPM (manually at the panel, or via a
+  programmed stage/schedule). This is a manufacturer firmware
+  restriction on the "direct" live speed command specifically (confirmed
+  against the pump's official Tuya schema) — any value below 1150 sent
+  to this entity, locally or via Tuya's cloud, is silently ignored by
+  the pump. Nothing to do with this integration or Home Assistant.
 
 ### Local connection issues
 
