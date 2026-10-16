@@ -128,7 +128,14 @@ etc.) sont volontairement exclus.
   log — plutôt que d'essayer de joindre une pompe volontairement hors
   ligne toutes les 3 secondes pendant des mois. N'affecte jamais la
   pompe elle-même (ce n'est pas un DP, rien n'est envoyé à la pompe) ;
-  l'état est mémorisé par Home Assistant et survit à un redémarrage.
+  l'état est mémorisé par Home Assistant et survit à un redémarrage —
+  y compris un redémarrage de HA qui arrive pendant que la pompe est
+  débranchée, auquel cas la configuration réussit quand même au lieu
+  de rester bloquée en "Nouvel essai" indéfiniment. **Important** : à
+  activer *avant* de débrancher la pompe pour l'hiver — si
+  l'intégration redémarre alors qu'elle n'a encore jamais été activée
+  avec la pompe hors ligne, elle reste bloquée en attente d'une
+  première connexion réussie (voir [Limitations connues](#limitations-connues)).
 - Les capteurs **Power Draw** (W) et **Energy** (kWh) sont calculés
   directement par l'intégration (interpolation d'une courbe RPM→W, puis
   intégration trapézoïdale dans le temps) — aucun template ou aide HA
@@ -169,6 +176,17 @@ etc.) sont volontairement exclus.
     RPM (filtration lente de nuit / hors-pointe pour économiser de
     l'énergie), donc à garder en tête si la précision d'Energy vous
     importe pour ces plages horaires.
+- Idéalement, activez **Winterized** **avant** de débrancher la pompe,
+  pendant qu'elle répond encore — le switch lui-même n'existe pas tant
+  que la configuration n'a pas réussi au moins une fois. Si vous vous
+  retrouvez quand même bloqué en « Nouvel essai » avec la pompe déjà
+  débranchée (pas besoin de la rebrancher) : allez dans **Paramètres →
+  Appareils et services → GoPool Variable Speed Pump → Configurer**
+  (l'engrenage) — ce menu reste accessible même si l'intégration n'a
+  jamais fini de démarrer — et cochez **Hivernisée** là. Valider
+  relance automatiquement la configuration, qui réussit cette fois
+  puisque l'option est déjà enregistrée avant même la première
+  tentative de connexion.
 
 ### Problèmes de connexion locale
 
@@ -351,7 +369,12 @@ intentionally excluded.
   attempt, no log entry — instead of trying to reach an intentionally
   offline pump every 3 seconds for months. Never touches the pump itself
   (not a DP, nothing is sent to it); the state is remembered by Home
-  Assistant and survives a restart.
+  Assistant and survives a restart — including one that happens while
+  the pump is unplugged, in which case setup still succeeds instead of
+  getting stuck retrying forever. **Important**: turn it on *before*
+  unplugging the pump — if the integration restarts while it's never
+  been turned on with the pump offline, it gets stuck waiting for a
+  first successful connection (see [Known limitations](#known-limitations)).
 - The **Power Draw** (W) and **Energy** (kWh) sensors are computed
   directly by the integration (interpolating an RPM→W curve, then
   trapezoidal integration over time) — no HA template or helper needed.
@@ -389,6 +412,15 @@ intentionally excluded.
     case for a sub-1150 speed in the first place (slow overnight/off-peak
     filtration to save energy), so worth keeping in mind if Energy
     accuracy during those windows matters to you.
+- Ideally, turn **Winterized** on *before* unplugging the pump, while
+  it's still reachable — the switch itself doesn't exist until setup
+  has succeeded at least once. If you do end up stuck retrying with the
+  pump already unplugged (no need to reconnect it): go to **Settings →
+  Devices & services → GoPool Variable Speed Pump → Configure** (the
+  gear icon) — this stays reachable even when the integration has never
+  finished setting up — and check **Winterized** there instead. Saving
+  automatically reloads the entry, which now succeeds since the option
+  is already stored before the first connection attempt even runs.
 
 ### Local connection issues
 
