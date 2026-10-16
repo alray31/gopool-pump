@@ -25,6 +25,7 @@ from .const import (
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
     CONF_PUMP_MODEL,
+    CONF_WINTERIZED,
     DEFAULT_PUMP_MODEL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -158,25 +159,30 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         self._consecutive_offline_failures: int = 0
         self._last_ip_rescan_attempt: float | None = None
         # Local-only, not a pump DP — nothing is ever sent to the device
-        # for this. Set/restored by switch.py's GoPoolWinterizedSwitch
-        # ("Winterized" entity), which reads/writes this attribute
-        # directly rather than going through async_write_dp like every
-        # other switch here. True makes _async_update_data below skip
-        # polling entirely instead of hitting an unreachable pump every
-        # DEFAULT_SCAN_INTERVAL seconds for months (this pump line is
-        # Canada-only and routinely unplugged/winterized ~6 months/year —
-        # see README) and logging a failure each time.
+        # for this. Set by switch.py's GoPoolWinterizedSwitch ("Winterized"
+        # entity), which reads/writes this attribute directly rather than
+        # going through async_write_dp like every other switch here, AND
+        # persists it to entry.options (CONF_WINTERIZED) so it survives a
+        # reload/restart and — critically — is already known at THIS
+        # exact line, before setup has done anything else. True makes
+        # _async_update_data below skip polling entirely instead of
+        # hitting an unreachable pump every DEFAULT_SCAN_INTERVAL seconds
+        # for months (this pump line is Canada-only and routinely
+        # unplugged/winterized ~6 months/year — see README) and logging a
+        # failure each time.
         #
-        # Not restored here at startup: RestoreEntity only runs once the
-        # switch entity itself is added to hass, which happens AFTER
-        # async_config_entry_first_refresh() below in async_setup_entry —
-        # so the very first poll after a Home Assistant restart always
-        # goes out for real regardless of this flag's last value, before
-        # the switch has a chance to restore it. Acceptable: one poll
-        # attempt per restart, not a spam problem (especially combined
-        # with the failure-logging dedup below), and every poll after
-        # that correctly honors the restored value.
-        self.winterized: bool = False
+        # Read from entry.options rather than just living on the switch
+        # entity (e.g. via RestoreEntity) specifically so it's available
+        # during async_setup_entry's call to
+        # coordinator.async_config_entry_first_refresh(), which runs
+        # BEFORE any entity (including the switch itself) is created.
+        # Without this, a Home Assistant restart while winterized used to
+        # hit _async_update_data with self.data still None, hit the "no
+        # prior data" branch, raise UpdateFailed -> ConfigEntryNotReady,
+        # and retry forever — the integration would never finish setting
+        # up at all (and so never create the switch that would have fixed
+        # it) for as long as the pump stayed intentionally unreachable.
+        self.winterized: bool = entry.options.get(CONF_WINTERIZED, False)
 
     def _sync_status(self) -> dict | None:
         with self._device_lock:
@@ -290,13 +296,25 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         )
 
     async def _async_update_data(self) -> dict:
-        if self.winterized and self.data is not None:
-            # See self.winterized's docstring above — skip the network
-            # entirely while winterized, instead of polling an
-            # intentionally-unplugged pump every cycle and logging a
-            # failure each time. self.data is already everything the
-            # entities need; nothing else to do this cycle.
-            return self.data
+        if self.winterized:
+            if self.data is not None:
+                # See self.winterized's docstring above — skip the
+                # network entirely while winterized, instead of polling
+                # an intentionally-unplugged pump every cycle and logging
+                # a failure each time. self.data is already everything
+                # the entities need; nothing else to do this cycle.
+                return self.data
+            # Never successfully polled yet (first refresh ever, e.g.
+            # right after setup or a Home Assistant restart), but already
+            # known to be winterized from entry.options at construction
+            # time. Must NOT fall through to the "no prior data" branch
+            # below, which raises UpdateFailed -> ConfigEntryNotReady and
+            # would retry forever against a pump that's deliberately
+            # offline for months — that's the exact bug this whole
+            # entry.options-based read exists to avoid. Entities start at
+            # "unknown" instead, and pick up real values the moment this
+            # gets turned off and the pump is reachable again.
+            return {}
         result = await self._async_poll_once()
         if not is_valid_status_result(result):
             # A single failed read is common right after something else

@@ -68,6 +68,7 @@ from .const import (
     CONF_PROTOCOL_VERSION,
     CONF_PUMP_MODEL,
     CONF_USER_CODE,
+    CONF_WINTERIZED,
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_PUMP_MODEL,
     DOMAIN,
@@ -623,8 +624,25 @@ class GoPoolPumpConfigFlow(ConfigFlow, domain=DOMAIN):
 class GoPoolPumpOptionsFlow(OptionsFlowWithReload):
     """Lets the pump model — used only to pick the RPM->W calibration curve
     for the Power Draw / Energy sensors, see RPM_POWER_TABLES in const.py —
-    be changed after initial setup, without deleting and re-adding the
-    integration.
+    and the Winterized flag be changed after initial setup, without
+    deleting and re-adding the integration.
+
+    Winterized is also exposed as its own switch entity (switch.py's
+    GoPoolWinterizedSwitch) for everyday on/off convenience from the
+    dashboard — both read/write the exact same entry.options key
+    (CONF_WINTERIZED), so either one reflects what the other just set.
+    It's duplicated here specifically because THIS flow — "Configure" on
+    the integration's card in Settings > Devices & services — stays
+    reachable even when the config entry is stuck retrying
+    ConfigEntryNotReady and has never created a single entity yet (see
+    GoPoolCoordinator.winterized's docstring in __init__.py for exactly
+    that scenario). The switch can't help there since it doesn't exist
+    until setup has already succeeded once; this does, because HA routes
+    "Configure" to async_get_options_flow regardless of whether the
+    entry's platforms ever loaded. That's the intended escape hatch for
+    someone whose pump was already unplugged for the winter before they
+    ever got a chance to flip the switch — no manual editing of HA's
+    storage files required.
 
     OptionsFlowWithReload (not the plain OptionsFlow) automatically
     reloads the entry after async_create_entry below, which is exactly
@@ -633,15 +651,21 @@ class GoPoolPumpOptionsFlow(OptionsFlowWithReload):
     manual pattern is deprecated as of Home Assistant 2026.12.0 in favor
     of this. See __init__.py's async_setup_entry for the other reload
     case (IP self-healing) this class doesn't cover, handled separately.
+    That automatic reload is exactly what makes this work as the escape
+    hatch described above: submitting this form with Winterized checked
+    reloads the entry, and GoPoolCoordinator.__init__ reads the
+    just-saved entry.options before its first refresh even runs.
     """
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
-            # The submitted value is a slug (e.g. "ag1"), not the real
-            # stored value — see PUMP_MODEL_SLUGS in const.py and
-            # _pump_model_selector()'s docstring above for why.
+            # The submitted pump_model value is a slug (e.g. "ag1"), not
+            # the real stored value — see PUMP_MODEL_SLUGS in const.py and
+            # _pump_model_selector()'s docstring above for why. winterized
+            # needs no such translation, so **user_input already carries
+            # it through as-is.
             return self.async_create_entry(
                 title="",
                 data={
@@ -650,17 +674,19 @@ class GoPoolPumpOptionsFlow(OptionsFlowWithReload):
                 },
             )
 
-        current = self.config_entry.options.get(
+        current_model = self.config_entry.options.get(
             CONF_PUMP_MODEL,
             self.config_entry.data.get(CONF_PUMP_MODEL, DEFAULT_PUMP_MODEL),
         )
+        current_winterized = self.config_entry.options.get(CONF_WINTERIZED, False)
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        CONF_PUMP_MODEL, default=PUMP_MODEL_SLUGS[current]
-                    ): _pump_model_selector()
+                        CONF_PUMP_MODEL, default=PUMP_MODEL_SLUGS[current_model]
+                    ): _pump_model_selector(),
+                    vol.Optional(CONF_WINTERIZED, default=current_winterized): bool,
                 }
             ),
         )
