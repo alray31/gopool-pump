@@ -19,6 +19,12 @@ CONF_LOCAL_KEY = "local_key"
 CONF_PROTOCOL_VERSION = "protocol_version"
 CONF_USER_CODE = "user_code"
 CONF_PUMP_MODEL = "pump_model"
+# Lives in entry.options, same as CONF_PUMP_MODEL — persisted there
+# (rather than only via the Winterized switch's own state) specifically
+# so GoPoolCoordinator can read it at construction time, before its very
+# first poll ever runs. See GoPoolCoordinator.winterized in __init__.py
+# for why that timing matters.
+CONF_WINTERIZED = "winterized"
 
 # Used only to pick the right RPM->W calibration curve (see RPM_POWER_TABLES
 # below) for the Power Draw / Energy sensors — has no effect on control.
@@ -195,12 +201,28 @@ DP_MAP: dict[str, dict] = {
     },
     # Current / commanded speed — DP103 actually controls the speed despite
     # its "current" name (confirmed empirically, see README).
+    #
+    # min is 1150, not 1000, even though the pump can physically reach
+    # 1000 RPM (panel, and the Stage 1-4 speeds). Confirmed straight from
+    # Tuya's own "Query Things Data Model" schema for an AG1 unit: DP103
+    # (cur_speed) and DP107 (set_speed) both declare typeSpec.min: 1150,
+    # while the Stage speed DPs (149/152/155/158) and Quick Clean (190)
+    # declare min: 1000. This is a genuine manufacturer-declared floor on
+    # "direct" live speed commands specifically (local AND cloud — Tuya's
+    # platform silently accepts a sub-1150 write as a "success" shadow
+    # update but never applies it to the device, since it's out of the
+    # declared valid range) — not a bug, not adjustable via any DP.
+    # Only confirmed against AG1's schema so far; applied to all 3 models
+    # here since they're the same OEM Tuya module family and there's no
+    # evidence to expect IG1/IG2 to differ, but this hasn't been directly
+    # confirmed for either. Re-check if an IG1/IG2 owner can pull their
+    # own Query Things Data Model response.
     DP_PUMP_SPEED: {
         "platform": "number",
         "key": "current_speed",
         "name": "Pump Speed",
         "unit": "rpm",
-        "min": 1000,
+        "min": 1150,
         "max": 3450,
         "step": 50,
         "icon": "mdi:speedometer",
