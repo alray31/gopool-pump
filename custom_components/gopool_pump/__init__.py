@@ -157,6 +157,26 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         # LAN with a UDP scan every single failed cycle.
         self._consecutive_offline_failures: int = 0
         self._last_ip_rescan_attempt: float | None = None
+        # Local-only, not a pump DP — nothing is ever sent to the device
+        # for this. Set/restored by switch.py's GoPoolWinterizedSwitch
+        # ("Winterized" entity), which reads/writes this attribute
+        # directly rather than going through async_write_dp like every
+        # other switch here. True makes _async_update_data below skip
+        # polling entirely instead of hitting an unreachable pump every
+        # DEFAULT_SCAN_INTERVAL seconds for months (this pump line is
+        # Canada-only and routinely unplugged/winterized ~6 months/year —
+        # see README) and logging a failure each time.
+        #
+        # Not restored here at startup: RestoreEntity only runs once the
+        # switch entity itself is added to hass, which happens AFTER
+        # async_config_entry_first_refresh() below in async_setup_entry —
+        # so the very first poll after a Home Assistant restart always
+        # goes out for real regardless of this flag's last value, before
+        # the switch has a chance to restore it. Acceptable: one poll
+        # attempt per restart, not a spam problem (especially combined
+        # with the failure-logging dedup below), and every poll after
+        # that correctly honors the restored value.
+        self.winterized: bool = False
 
     def _sync_status(self) -> dict | None:
         with self._device_lock:
@@ -270,6 +290,13 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
         )
 
     async def _async_update_data(self) -> dict:
+        if self.winterized and self.data is not None:
+            # See self.winterized's docstring above — skip the network
+            # entirely while winterized, instead of polling an
+            # intentionally-unplugged pump every cycle and logging a
+            # failure each time. self.data is already everything the
+            # entities need; nothing else to do this cycle.
+            return self.data
         result = await self._async_poll_once()
         if not is_valid_status_result(result):
             # A single failed read is common right after something else
@@ -329,16 +356,43 @@ class GoPoolCoordinator(DataUpdateCoordinator[dict]):
                 # only the very first refresh (no prior data yet) still
                 # raises below, so setup properly fails if the pump was
                 # never reachable at all.
-                _LOGGER.warning(
-                    "Poll failed (%s) — keeping last known state instead of going unavailable",
-                    result,
-                )
+                #
+                # Logged once at WARNING for the FIRST failure of a run
+                # (_consecutive_offline_failures just became 1 above), then
+                # downgraded to DEBUG for every repeat while the outage
+                # continues — an extended outage (unreachable for hours or
+                # months, e.g. winterizing without the Winterized switch
+                # set) used to log this at WARNING every single
+                # DEFAULT_SCAN_INTERVAL forever, which is how a few days
+                # turns into thousands of near-identical log lines.
+                if self._consecutive_offline_failures == 1:
+                    _LOGGER.warning(
+                        "Poll failed (%s) — keeping last known state instead "
+                        "of going unavailable (further repeats of this same "
+                        "failure are logged at debug level, not warning, "
+                        "until the pump responds again)",
+                        result,
+                    )
+                else:
+                    _LOGGER.debug(
+                        "Poll failed (%s) — keeping last known state (failure #%d)",
+                        result,
+                        self._consecutive_offline_failures,
+                    )
                 return self.data
             raise UpdateFailed(f"No response from pump: {result}")
         # Merge, don't replace: a "delta" response containing only the
         # DP(s) that just changed must not erase every other DP we already
         # know — see the comment on self._dps_cache above.
         self._dps_cache.update(result["dps"])
+        if self._consecutive_offline_failures:
+            # Mirrors the dedup above: one clear WARNING marking recovery,
+            # instead of silently going quiet and leaving the WARNING from
+            # the outage's start as the last thing anyone sees about it.
+            _LOGGER.warning(
+                "Pump responding again after %d failed poll(s)",
+                self._consecutive_offline_failures,
+            )
         self._consecutive_offline_failures = 0
         return dict(self._dps_cache)
 
