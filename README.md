@@ -93,7 +93,7 @@ animées) directement dans l'interface — inutile de les répéter ici.
 | Type | Entité |
 |---|---|
 | `switch` (contrôle) | Power, Schedule, Quick Clean |
-| `switch` (configuration) | No Load Protection |
+| `switch` (configuration) | No Load Protection, Winterized |
 | `number` (contrôle) | Pump Speed |
 | `number` (configuration) | Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |
 | `select` (configuration) | Stage 1-4 Start Time (heure + minute combinées en un seul sélecteur, valeurs limitées aux paliers de 10 minutes acceptés par la pompe) |
@@ -116,7 +116,19 @@ etc.) sont volontairement exclus.
 - Un polling local toutes les 3 secondes maintient l'état à jour, avec
   reconnexion automatique en cas d'échec ponctuel — même en cas d'échec
   ponctuel, les entités gardent leur dernière valeur connue au lieu de
-  devenir indisponibles.
+  devenir indisponibles. La première tentative échouée d'une panne est
+  journalisée en avertissement ; les répétitions suivantes de la même
+  panne passent en debug (pas de spam dans les logs si la pompe reste
+  injoignable longtemps), avec un dernier avertissement confirmant le
+  retour en ligne.
+- **Winterized** (switch, Configuration) : à activer quand la pompe est
+  débranchée pour l'hiver (courant sur cette gamme de pompes, vendue
+  exclusivement au Canada). Fait sauter complètement le polling réseau
+  tant qu'il est actif — aucune tentative de connexion, aucune entrée de
+  log — plutôt que d'essayer de joindre une pompe volontairement hors
+  ligne toutes les 3 secondes pendant des mois. N'affecte jamais la
+  pompe elle-même (ce n'est pas un DP, rien n'est envoyé à la pompe) ;
+  l'état est mémorisé par Home Assistant et survit à un redémarrage.
 - Les capteurs **Power Draw** (W) et **Energy** (kWh) sont calculés
   directement par l'intégration (interpolation d'une courbe RPM→W, puis
   intégration trapézoïdale dans le temps) — aucun template ou aide HA
@@ -306,7 +318,7 @@ captures) built right into the interface — no need to repeat them here.
 | Type | Entity |
 |---|---|
 | `switch` (control) | Power, Schedule, Quick Clean |
-| `switch` (configuration) | No Load Protection |
+| `switch` (configuration) | No Load Protection, Winterized |
 | `number` (control) | Pump Speed |
 | `number` (configuration) | Quick Clean Speed, Quick Clean Duration, Timeout Duration, Stage 1-4 Speed, Stage 1-4 Duration |
 | `select` (configuration) | Stage 1-4 Start Time (hour + minute combined into a single picker, restricted to the 10-minute steps the pump accepts) |
@@ -328,7 +340,18 @@ intentionally excluded.
   no need to create a Tuya IoT developer account.
 - Local polling every 3 seconds keeps state up to date, with automatic
   reconnection on a one-off failure — even on a failed poll, entities keep
-  their last known value instead of going unavailable.
+  their last known value instead of going unavailable. The first failed
+  attempt of an outage is logged as a warning; further repeats of the
+  same outage drop to debug level (no log spam if the pump stays
+  unreachable for a long stretch), with one final warning confirming
+  it's back online.
+- **Winterized** (switch, Configuration): turn this on when the pump is
+  unplugged for the winter (common on this pump line, sold exclusively
+  in Canada). Skips network polling entirely while on — no connection
+  attempt, no log entry — instead of trying to reach an intentionally
+  offline pump every 3 seconds for months. Never touches the pump itself
+  (not a DP, nothing is sent to it); the state is remembered by Home
+  Assistant and survives a restart.
 - The **Power Draw** (W) and **Energy** (kWh) sensors are computed
   directly by the integration (interpolating an RPM→W curve, then
   trapezoidal integration over time) — no HA template or helper needed.
