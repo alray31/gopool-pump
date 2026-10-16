@@ -57,7 +57,11 @@
         "title": "GoPool Pump options",
         "description": "Change the pump model used to calculate the Power Draw / Energy sensors. Note: Power/Energy show as unavailable for IG2 until a calibrated RPM→W curve is added for that model.",
         "data": {
-          "pump_model": "Pump model"
+          "pump_model": "Pump model",
+          "winterized": "Winterized"
+        },
+        "data_description": {
+          "winterized": "Turn on when the pump is unplugged for the winter, to stop polling it. Same setting as the Winterized switch — use this page instead of the switch if the integration shows \"retrying setup\" and never created its entities yet."
         }
       }
     }

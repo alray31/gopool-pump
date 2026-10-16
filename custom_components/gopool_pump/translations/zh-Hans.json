@@ -57,7 +57,11 @@
         "title": "GoPool Pump 选项",
         "description": "更改用于计算功率 / 能耗传感器的水泵型号。注意：在为 IG2 添加校准的 RPM→W 曲线之前，功率/能耗将显示为“不可用”。",
         "data": {
-          "pump_model": "水泵型号"
+          "pump_model": "水泵型号",
+          "winterized": "已冬眠"
+        },
+        "data_description": {
+          "winterized": "水泵因过冬而断电时开启此项，以停止对其轮询。与 Winterized 开关是同一个设置——如果集成显示“正在重试设置”且从未创建过实体，请在此页面设置,而不是使用该开关。"
         }
       }
     }

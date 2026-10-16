@@ -57,7 +57,11 @@
         "title": "Opciones de GoPool Pump",
         "description": "Cambia el modelo de bomba usado para calcular los sensores de Consumo / Energía. Nota: Consumo/Energía se muestran como no disponibles para IG2 hasta que se agregue una curva RPM→W calibrada para ese modelo.",
         "data": {
-          "pump_model": "Modelo de bomba"
+          "pump_model": "Modelo de bomba",
+          "winterized": "Invernada"
+        },
+        "data_description": {
+          "winterized": "Actívalo cuando la bomba esté desconectada por el invierno, para dejar de consultarla. Mismo ajuste que el interruptor Winterized — usa esta página en vez del interruptor si la integración muestra \"reintentando\" y nunca llegó a crear sus entidades."
         }
       }
     }

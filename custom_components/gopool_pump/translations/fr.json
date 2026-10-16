@@ -57,7 +57,11 @@
         "title": "Options GoPool Pump",
         "description": "Changez le modèle de pompe utilisé pour calculer les capteurs Puissance / Énergie. Note : Puissance/Énergie affichent \"indisponible\" pour IG2 tant qu'une courbe RPM→W calibrée n'a pas été ajoutée pour ce modèle.",
         "data": {
-          "pump_model": "Modèle de pompe"
+          "pump_model": "Modèle de pompe",
+          "winterized": "Hivernisée"
+        },
+        "data_description": {
+          "winterized": "Activez quand la pompe est débranchée pour l'hiver, pour arrêter de la sonder. Même réglage que le switch Winterized — utilisez cette page plutôt que le switch si l'intégration affiche \"nouvel essai\" et n'a jamais créé ses entités."
         }
       }
     }
